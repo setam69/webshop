@@ -26,6 +26,9 @@ def create_app(test_config=None):
     _register_jinja(app)
     _register_blueprints(app)
 
+    from . import demo
+    demo.init_app(app)
+
     # اطمینان از وجود جداول در اولین اجرا
     with app.app_context():
         db.init_db()

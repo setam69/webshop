@@ -7,7 +7,7 @@ import pytest
 
 from payroll import create_app
 from payroll.jalali import to_persian_digits
-from payroll.utils import compute_shares, parse_amount, parse_percent
+from payroll.utils import compute_shares, format_money, parse_amount, parse_percent
 
 
 @pytest.fixture
@@ -41,8 +41,49 @@ def test_compute_shares_example():
 def test_parse_helpers():
     assert parse_amount("۱۰,۰۰۰,۰۰۰") == 10_000_000
     assert parse_amount("abc") is None
+    assert parse_amount("") is None
+    assert parse_amount("-500") is None        # مبلغ منفی رد شود
     assert parse_percent("30") == 30
-    assert parse_percent("150") is None
+    assert parse_percent("150") is None         # درصد بالای ۱۰۰ رد شود
+    assert parse_percent("-5") is None          # درصد منفی رد شود
+
+
+def test_format_money_tolerates_strings():
+    # نمایش مبلغ پس از خطای فرم (ورودی رشته‌ای با کاما) نباید صفر شود
+    assert format_money("10,000,000") == "10,000,000"
+    assert format_money("۱۰۰۰") == "1,000"
+    assert format_money(2500000) == "2,500,000"
+
+
+def test_password_is_hashed(client):
+    # رمز عبور نباید به‌صورت متن ساده ذخیره شود
+    login(client)
+    app = client.application
+    with app.app_context():
+        from payroll.db import get_db
+        row = get_db().execute(
+            "SELECT password_hash FROM users WHERE username = 'admin'"
+        ).fetchone()
+    assert row["password_hash"] != "admin"
+    assert row["password_hash"].startswith(("pbkdf2:", "scrypt:"))
+
+
+def test_seed_demo(client):
+    login(client)
+    app = client.application
+    with app.app_context():
+        from payroll.demo import seed_demo
+        seed_demo(reset=True)
+        from payroll.db import get_db
+        db = get_db()
+        assert db.execute("SELECT COUNT(*) c FROM workers").fetchone()["c"] == 2
+        proj = db.execute("SELECT * FROM projects").fetchone()
+        assert proj["labor_amount"] == 10_000_000
+        shares = db.execute(
+            "SELECT share_amount FROM project_workers WHERE project_id = ?",
+            (proj["id"],),
+        ).fetchall()
+        assert [s["share_amount"] for s in shares] == [3_000_000, 3_000_000]
 
 
 # --- مسیرها ------------------------------------------------------------------

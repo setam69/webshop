@@ -55,7 +55,14 @@ def compute_shares(labor_amount, percents):
 
 
 def format_money(value):
-    """قالب‌بندی مبلغ با جداکننده هزارگان (ارقام انگلیسی)."""
+    """قالب‌بندی مبلغ با جداکننده هزارگان (ارقام انگلیسی).
+
+    ورودی می‌تواند عدد یا رشته (حتی با جداکننده/ارقام فارسی) باشد؛ این کار باعث
+    می‌شود نمایش مبلغ پس از خطای اعتبارسنجی فرم هم درست بماند.
+    """
+    if isinstance(value, str):
+        cleaned = jalali.to_english_digits(value).replace(",", "").replace("،", "").strip()
+        value = cleaned if cleaned != "" else 0
     try:
         n = int(round(float(value)))
     except (TypeError, ValueError):

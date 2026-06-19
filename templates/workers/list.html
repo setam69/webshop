@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}نیروها{% endblock %}
+{% block heading %}مدیریت نیروها{% endblock %}
+{% block content %}
+
+<div class="page-actions">
+  <a href="{{ url_for('workers.create') }}" class="btn btn-primary">➕ افزودن نیرو</a>
+</div>
+
+<div class="card">
+  {% if workers %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>نام</th><th>تماس</th><th class="num">درصد پیش‌فرض</th>
+          <th>وضعیت</th><th class="num">مانده طلب ({{ currency }})</th><th>عملیات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in workers %}
+        <tr>
+          <td>{{ w.name }}{% if w.note %}<div class="hint">{{ w.note }}</div>{% endif %}</td>
+          <td class="num">{{ w.phone | fa if w.phone else '—' }}</td>
+          <td class="num">{{ w.default_percent | percent | fa }}٪</td>
+          <td>{% if w.is_active %}<span class="badge green">فعال</span>{% else %}<span class="badge gray">غیرفعال</span>{% endif %}</td>
+          <td class="num {{ 'text-red' if w.balance > 0 else 'text-green' }}">{{ w.balance | money_fa }}</td>
+          <td>
+            <div class="btn-bar">
+              <a href="{{ url_for('settlement.detail', worker_id=w.id) }}" class="btn btn-sm btn-outline">تسویه</a>
+              <a href="{{ url_for('workers.edit', worker_id=w.id) }}" class="btn btn-sm btn-outline">ویرایش</a>
+              <form class="inline-form" method="post" action="{{ url_for('workers.delete', worker_id=w.id) }}" data-confirm="آیا از حذف «{{ w.name }}» مطمئن هستید؟">
+                <button type="submit" class="btn btn-sm btn-danger">حذف</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">هنوز نیرویی ثبت نشده است. <a href="{{ url_for('workers.create') }}">افزودن نیرو</a></div>
+  {% endif %}
+</div>
+
+{% endblock %}

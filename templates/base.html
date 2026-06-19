@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}پلتفرم حسابداری دستمزد{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+{% if current_user %}
+  <div class="backdrop"></div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="logo">₸</span><span>حساب دستمزد</span></div>
+      <nav class="nav">
+        {% set ep = request.endpoint or '' %}
+        <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if ep.startswith('dashboard') }}">🏠 داشبورد</a>
+        <a href="{{ url_for('projects.index') }}" class="{{ 'active' if ep.startswith('projects') }}">📋 پروژه‌ها</a>
+        <a href="{{ url_for('workers.index') }}" class="{{ 'active' if ep.startswith('workers') }}">👷 نیروها</a>
+        <a href="{{ url_for('settlement.index') }}" class="{{ 'active' if ep.startswith('settlement') }}">💰 تسویه حساب</a>
+        <a href="{{ url_for('reports.index') }}" class="{{ 'active' if ep.startswith('reports') }}">📊 گزارش‌ها</a>
+        <div class="sep"></div>
+        <a href="{{ url_for('settings.index') }}" class="{{ 'active' if ep.startswith('settings') }}">⚙️ تنظیمات</a>
+        <a href="{{ url_for('auth.logout') }}">🚪 خروج</a>
+      </nav>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="menu-toggle" aria-label="منو">☰</button>
+          <h1>{% block heading %}{% endblock %}</h1>
+        </div>
+        <div class="user">
+          <span>👤 {{ current_user['full_name'] or current_user['username'] }}</span>
+        </div>
+      </header>
+      <main class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+{% else %}
+  {% block guest %}{% endblock %}
+{% endif %}
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

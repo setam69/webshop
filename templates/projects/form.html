@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ 'ثبت پروژه جدید' if mode == 'new' else 'ویرایش پروژه' }}{% endblock %}
+{% block heading %}{{ 'ثبت پروژه جدید' if mode == 'new' else 'ویرایش پروژه' }}{% endblock %}
+{% block content %}
+
+{% set action = url_for('projects.create') if mode == 'new' else url_for('projects.edit', project_id=project['id']) %}
+<form method="post" action="{{ action }}">
+  <div class="card">
+    <div class="card-title"><h2>اطلاعات پروژه</h2></div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="name">نام پروژه *</label>
+        <input type="text" id="name" name="name" required value="{{ f.name or '' }}">
+      </div>
+      <div class="field">
+        <label for="customer_name">نام مشتری / کارفرما</label>
+        <input type="text" id="customer_name" name="customer_name" value="{{ f.customer_name or '' }}">
+      </div>
+      <div class="field">
+        <label for="project_date">تاریخ پروژه (شمسی)</label>
+        <input type="text" id="project_date" name="project_date" placeholder="۱۴۰۳/۰۳/۲۹"
+               value="{{ f.project_date or '' }}">
+      </div>
+      <div class="field">
+        <label for="status">وضعیت پروژه</label>
+        <select id="status" name="status">
+          {% for code in STATUS_ORDER %}
+          <option value="{{ code }}" {{ 'selected' if f.status == code }}>{{ STATUS_LABELS[code] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="labor_amount">مبلغ کل دستمزد نصب ({{ currency }}) *</label>
+        <input type="text" id="labor_amount" name="labor_amount" class="money" inputmode="numeric"
+               required value="{{ f.labor_amount | money if f.labor_amount else '' }}">
+      </div>
+      <div class="field">
+        <label for="address">آدرس / محل پروژه</label>
+        <input type="text" id="address" name="address" value="{{ f.address or '' }}">
+      </div>
+      <div class="field full">
+        <label for="note">توضیحات</label>
+        <textarea id="note" name="note">{{ f.note or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h2>نیروهای نصب و درصد سهم</h2></div>
+    <p class="hint">نیروهای موردنظر را انتخاب کنید و درصد هرکدام را برای همین پروژه وارد کنید. سهم به صورت زنده محاسبه می‌شود.</p>
+    {% if workers %}
+    <div class="table-wrap">
+      <table id="worker-rows">
+        <thead>
+          <tr><th>انتخاب</th><th>نیرو</th><th class="num">درصد (٪)</th><th class="num">سهم ({{ currency }})</th></tr>
+        </thead>
+        <tbody>
+          {% for w in workers %}
+          {% set is_sel = w.id in selected %}
+          <tr class="worker-row">
+            <td>
+              <input type="checkbox" name="worker_id" value="{{ w.id }}" style="width:auto"
+                     {{ 'checked' if is_sel }}>
+            </td>
+            <td>{{ w.name }}{% if not w.is_active %} <span class="badge gray">غیرفعال</span>{% endif %}</td>
+            <td class="num">
+              <input type="text" class="percent" name="percent_{{ w.id }}" inputmode="decimal" style="max-width:110px"
+                     value="{{ (selected[w.id] if is_sel else w.default_percent) | percent }}">
+            </td>
+            <td class="num share-cell">—</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:700">
+            <td></td><td>جمع</td>
+            <td class="num"><span id="sum-percent">0</span>٪</td>
+            <td class="num"><span id="sum-share">0</span></td>
+          </tr>
+          <tr style="font-weight:700;color:var(--green)">
+            <td></td><td>سهم مغازه</td><td></td>
+            <td class="num"><span id="shop-share">0</span></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div id="percent-warning" class="flash error" style="display:none;margin-top:12px"></div>
+    {% else %}
+    <div class="empty">هیچ نیروی فعالی وجود ندارد. ابتدا <a href="{{ url_for('workers.create') }}">یک نیرو اضافه کنید</a>.</div>
+    {% endif %}
+  </div>
+
+  <div class="btn-bar">
+    <button type="submit" class="btn btn-primary">💾 ذخیره پروژه</button>
+    <a href="{{ url_for('projects.index') }}" class="btn btn-outline">انصراف</a>
+  </div>
+</form>
+
+{% endblock %}

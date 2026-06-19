@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}صورتحساب {{ worker.name }}{% endblock %}
+{% block heading %}صورتحساب نیرو: {{ worker.name }}{% endblock %}
+{% block content %}
+
+<div class="page-actions">
+  <a href="{{ url_for('settlement.index') }}" class="btn btn-outline">بازگشت</a>
+  {% if worker.phone %}<span class="text-muted">📞 {{ worker.phone | fa }}</span>{% endif %}
+</div>
+
+<div class="stats-grid">
+  <div class="stat primary"><div class="label">مجموع سهم</div><div class="value">{{ totals.share | money_fa }} <span class="unit">{{ currency }}</span></div></div>
+  <div class="stat green"><div class="label">مجموع پرداخت‌شده</div><div class="value">{{ totals.paid | money_fa }} <span class="unit">{{ currency }}</span></div></div>
+  <div class="stat red"><div class="label">مانده طلب</div><div class="value">{{ totals.balance | money_fa }} <span class="unit">{{ currency }}</span></div></div>
+</div>
+
+<div class="row-2">
+  <div class="card">
+    <div class="card-title"><h2>ثبت پرداخت جدید</h2></div>
+    <form method="post" action="{{ url_for('payments.create') }}">
+      <input type="hidden" name="worker_id" value="{{ worker.id }}">
+      <input type="hidden" name="back" value="{{ url_for('settlement.detail', worker_id=worker.id) }}">
+      <div class="form-grid">
+        <div class="field">
+          <label>مبلغ ({{ currency }})</label>
+          <input type="text" class="money" name="amount" inputmode="numeric" required>
+        </div>
+        <div class="field">
+          <label>تاریخ (شمسی)</label>
+          <input type="text" name="payment_date" value="{{ today }}">
+        </div>
+        <div class="field full">
+          <label>توضیح</label>
+          <input type="text" name="note">
+        </div>
+      </div>
+      <button class="btn btn-success" type="submit">💰 ثبت پرداخت</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h2>تسویه کامل</h2></div>
+    {% if totals.balance > 0 %}
+    <p>با ثبت تسویه کامل، پرداختی برابر با کل مانده طلب
+      (<b>{{ totals.balance | money_fa }} {{ currency }}</b>) ثبت می‌شود.</p>
+    <form method="post" action="{{ url_for('settlement.settle_all', worker_id=worker.id) }}"
+          data-confirm="ثبت تسویه کامل به مبلغ {{ totals.balance | money }} {{ currency }}؟">
+      <button class="btn btn-primary" type="submit">✅ تسویه کامل</button>
+    </form>
+    {% else %}
+    <div class="empty">این نیرو مانده طلبی ندارد. ✅</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><h2>پروژه‌های این نیرو</h2></div>
+  {% if projects %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>پروژه</th><th>تاریخ</th><th class="num">درصد</th><th class="num">سهم</th>
+        <th class="num">پرداخت در پروژه</th><th>وضعیت</th></tr></thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td><a href="{{ url_for('projects.detail', project_id=p.id) }}">{{ p.name }}</a></td>
+          <td class="num">{{ p.project_date_jalali | fa if p.project_date_jalali else '—' }}</td>
+          <td class="num">{{ p.percent | percent | fa }}٪</td>
+          <td class="num">{{ p.share_amount | money_fa }}</td>
+          <td class="num">{{ p.paid_on_project | money_fa }}</td>
+          <td><span class="badge blue">{{ p.status | status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty">این نیرو در هیچ پروژه‌ای ثبت نشده است.</div>{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title"><h2>سابقه پرداخت‌ها</h2></div>
+  {% if payments %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th class="num">مبلغ</th><th>تاریخ</th><th>پروژه</th><th>توضیح</th><th></th></tr></thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td class="num">{{ p.amount | money_fa }}</td>
+          <td class="num">{{ p.payment_date_jalali | fa if p.payment_date_jalali else '—' }}</td>
+          <td>{{ p.project_name or 'تسویه کلی' }}</td>
+          <td style="white-space:normal">{{ p.note or '—' }}</td>
+          <td>
+            <form class="inline-form" method="post" action="{{ url_for('payments.delete', payment_id=p.id) }}"
+                  data-confirm="حذف این پرداخت؟">
+              <input type="hidden" name="back" value="{{ url_for('settlement.detail', worker_id=worker.id) }}">
+              <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty">هنوز پرداختی ثبت نشده است.</div>{% endif %}
+</div>
+
+{% endblock %}

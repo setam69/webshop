@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}گزارش‌ها{% endblock %}
+{% block heading %}گزارش‌ها{% endblock %}
+{% block content %}
+
+<div class="card">
+  <form class="filters" method="get" action="{{ url_for('reports.index') }}">
+    <div class="field" style="margin:0">
+      <label>نوع گزارش</label>
+      <select name="type">
+        {% for code, label in report_types.items() %}
+        <option value="{{ code }}" {{ 'selected' if rtype == code }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <label>از تاریخ (شمسی)</label>
+      <input type="text" name="from_date" placeholder="۱۴۰۳/۰۱/۰۱" value="{{ from_j }}">
+    </div>
+    <div class="field" style="margin:0">
+      <label>تا تاریخ (شمسی)</label>
+      <input type="text" name="to_date" placeholder="۱۴۰۳/۱۲/۲۹" value="{{ to_j }}">
+    </div>
+    <button class="btn btn-primary" type="submit">نمایش گزارش</button>
+  </form>
+  <p class="hint" style="margin-bottom:0">برای گزارش‌های «بدهی به نیروها» و «تسویه‌نشده» بازه تاریخ اعمال نمی‌شود.</p>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <h2>{{ report_types[rtype] }}</h2>
+    <div class="btn-bar">
+      <a class="btn btn-sm btn-success" href="{{ url_for('reports.export_excel', type=rtype, from_date=from_j, to_date=to_j) }}">⬇ خروجی Excel</a>
+      <a class="btn btn-sm btn-outline" target="_blank" href="{{ url_for('reports.print_view', type=rtype, from_date=from_j, to_date=to_j) }}">🖨 خروجی PDF / چاپ</a>
+    </div>
+  </div>
+
+  {% if summary %}
+  <div class="stats-grid">
+    {% for label, value in summary %}
+    <div class="stat">
+      <div class="label">{{ label }}</div>
+      <div class="value">{{ value | money_fa }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if data %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr>{% for h in headers %}<th class="{{ 'num' if loop.index0 in money_cols }}">{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          {% for cell in row %}
+            {% if loop.index0 in money_cols %}
+              <td class="num">{{ cell | money_fa }}</td>
+            {% else %}
+              <td>{{ cell | fa }}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">داده‌ای برای نمایش وجود ندارد.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

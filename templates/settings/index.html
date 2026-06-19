@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}تنظیمات{% endblock %}
+{% block heading %}تنظیمات{% endblock %}
+{% block content %}
+
+<div class="row-2">
+  <div class="card">
+    <div class="card-title"><h2>تنظیمات عمومی</h2></div>
+    <form method="post" action="{{ url_for('settings.index') }}">
+      <div class="field">
+        <label for="currency">واحد پول</label>
+        <input type="text" id="currency" name="currency" value="{{ currency }}">
+      </div>
+      <div class="field">
+        <label for="shop_name">نام مغازه</label>
+        <input type="text" id="shop_name" name="shop_name" value="{{ shop_name }}">
+      </div>
+      <div class="field">
+        <label for="default_shop_percent">درصد پیش‌فرض مغازه (اختیاری)</label>
+        <input type="text" id="default_shop_percent" name="default_shop_percent" value="{{ default_shop_percent }}">
+        <span class="hint">اگر خالی بماند، سهم مغازه به صورت خودکار از باقی‌مانده محاسبه می‌شود.</span>
+      </div>
+      <button class="btn btn-primary" type="submit">💾 ذخیره تنظیمات</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h2>بکاپ دیتابیس</h2></div>
+    <p>یک کپی کامل از پایگاه داده تهیه کنید. فایل‌ها در پوشه <code>backups</code> ذخیره می‌شوند.</p>
+    <form method="post" action="{{ url_for('settings.backup_now') }}">
+      <button class="btn btn-success" type="submit">📦 تهیه بکاپ جدید</button>
+    </form>
+    {% if backups %}
+    <hr>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>فایل</th><th>تاریخ</th><th></th></tr></thead>
+        <tbody>
+          {% for b in backups %}
+          <tr>
+            <td>{{ b.name }}</td>
+            <td class="num">{{ b.mtime }}</td>
+            <td><a class="btn btn-sm btn-outline" href="{{ url_for('settings.backup_download', name=b.name) }}">دانلود</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><h2>مدیریت کاربران پنل</h2></div>
+  {% if current_user.role == 'admin' %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>نام کاربری</th><th>نام</th><th>نقش</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{{ u.full_name or '—' }}</td>
+          <td>{{ 'مدیر' if u.role == 'admin' else 'کاربر' }}</td>
+          <td>{% if u.is_active %}<span class="badge green">فعال</span>{% else %}<span class="badge gray">غیرفعال</span>{% endif %}</td>
+          <td>
+            <div class="btn-bar">
+              <form class="inline-form filters" method="post" action="{{ url_for('settings.user_password', user_id=u.id) }}">
+                <input type="password" name="password" placeholder="رمز جدید" style="max-width:130px">
+                <button class="btn btn-sm btn-outline" type="submit">تغییر رمز</button>
+              </form>
+              {% if u.id != current_user.id %}
+              <form class="inline-form" method="post" action="{{ url_for('settings.user_toggle', user_id=u.id) }}">
+                <button class="btn btn-sm btn-outline" type="submit">{{ 'غیرفعال' if u.is_active else 'فعال' }}</button>
+              </form>
+              <form class="inline-form" method="post" action="{{ url_for('settings.user_delete', user_id=u.id) }}" data-confirm="حذف کاربر «{{ u.username }}»؟">
+                <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <hr>
+  <h3>افزودن کاربر جدید</h3>
+  <form method="post" action="{{ url_for('settings.user_create') }}">
+    <div class="form-grid">
+      <div class="field"><label>نام کاربری *</label><input type="text" name="username" required></div>
+      <div class="field"><label>رمز عبور *</label><input type="password" name="password" required></div>
+      <div class="field"><label>نام کامل</label><input type="text" name="full_name"></div>
+      <div class="field"><label>نقش</label>
+        <select name="role"><option value="user">کاربر</option><option value="admin">مدیر</option></select>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">➕ افزودن کاربر</button>
+  </form>
+  {% else %}
+  <div class="empty">مدیریت کاربران فقط برای مدیر در دسترس است.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

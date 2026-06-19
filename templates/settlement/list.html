@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}تسویه حساب{% endblock %}
+{% block heading %}تسویه حساب نیروها{% endblock %}
+{% block content %}
+
+<div class="card">
+  {% if workers %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>نیرو</th><th class="num">مجموع سهم</th><th class="num">پرداخت‌شده</th>
+          <th class="num">مانده طلب ({{ currency }})</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for w in workers %}
+        <tr>
+          <td>{{ w.name }}</td>
+          <td class="num">{{ w.total_share | money_fa }}</td>
+          <td class="num">{{ w.total_paid | money_fa }}</td>
+          <td class="num {{ 'text-red' if w.balance > 0 else 'text-green' }}">{{ w.balance | money_fa }}</td>
+          <td><a href="{{ url_for('settlement.detail', worker_id=w.id) }}" class="btn btn-sm btn-primary">صورتحساب</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">هنوز نیرویی ثبت نشده است.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}ورود — حساب دستمزد{% endblock %}
+{% block guest %}
+<div class="login-wrap">
+  <div class="card login-card">
+    <div class="brand"><span class="logo">₸</span><span>حساب دستمزد</span></div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="post">
+      <div class="field">
+        <label for="username">نام کاربری</label>
+        <input type="text" id="username" name="username" autofocus required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">رمز عبور</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">ورود</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

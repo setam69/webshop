@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ 'افزودن نیرو' if mode == 'new' else 'ویرایش نیرو' }}{% endblock %}
+{% block heading %}{{ 'افزودن نیرو' if mode == 'new' else 'ویرایش نیرو' }}{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:680px">
+  <form method="post">
+    <div class="form-grid">
+      <div class="field">
+        <label for="name">نام نیرو *</label>
+        <input type="text" id="name" name="name" required value="{{ worker['name'] if worker else '' }}">
+      </div>
+      <div class="field">
+        <label for="phone">شماره تماس</label>
+        <input type="tel" id="phone" name="phone" value="{{ worker['phone'] if worker else '' }}">
+      </div>
+      <div class="field">
+        <label for="default_percent">درصد پیش‌فرض</label>
+        <input type="text" id="default_percent" name="default_percent" inputmode="decimal"
+               value="{{ worker['default_percent'] if worker else '0' }}">
+        <span class="hint">درصدی که معمولاً این نیرو از مبلغ پروژه می‌گیرد (۰ تا ۱۰۰).</span>
+      </div>
+      <div class="field">
+        <label>وضعیت</label>
+        <label style="font-weight:400;display:flex;gap:8px;align-items:center;margin-top:6px">
+          <input type="checkbox" name="is_active" value="1" style="width:auto"
+                 {{ 'checked' if (worker is none) or worker['is_active'] }}>
+          فعال
+        </label>
+      </div>
+      <div class="field full">
+        <label for="note">توضیحات</label>
+        <textarea id="note" name="note">{{ worker['note'] if worker else '' }}</textarea>
+      </div>
+    </div>
+    <hr>
+    <div class="btn-bar">
+      <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+      <a href="{{ url_for('workers.index') }}" class="btn btn-outline">انصراف</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

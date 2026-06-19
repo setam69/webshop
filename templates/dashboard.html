@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}داشبورد{% endblock %}
+{% block heading %}داشبورد{% endblock %}
+{% block content %}
+
+<div class="page-actions">
+  <a href="{{ url_for('projects.create') }}" class="btn btn-primary">➕ ثبت پروژه جدید</a>
+  <a href="{{ url_for('workers.create') }}" class="btn btn-outline">➕ افزودن نیرو</a>
+  <a href="{{ url_for('reports.index') }}" class="btn btn-outline">📊 مشاهده گزارش</a>
+</div>
+
+<div class="stats-grid">
+  <div class="stat primary">
+    <div class="label">تعداد پروژه‌ها</div>
+    <div class="value">{{ stats.projects_count | fa }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">مجموع کل دستمزد</div>
+    <div class="value">{{ stats.total_labor | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+  <div class="stat">
+    <div class="label">مجموع سهم نیروها</div>
+    <div class="value">{{ stats.total_workers_share | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+  <div class="stat green">
+    <div class="label">سود / سهم مغازه</div>
+    <div class="value">{{ stats.shop_share | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+  <div class="stat amber">
+    <div class="label">پروژه‌های تسویه‌نشده</div>
+    <div class="value">{{ stats.unsettled_count | fa }}</div>
+  </div>
+  <div class="stat red">
+    <div class="label">مجموع بدهی به نیروها</div>
+    <div class="value">{{ stats.total_debt | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+</div>
+
+<div class="row-2">
+  <div class="card">
+    <div class="card-title"><h2>بدهی باقی‌مانده به نیروها</h2><a href="{{ url_for('settlement.index') }}" class="btn btn-sm btn-outline">همه</a></div>
+    {% if debts %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>نیرو</th><th class="num">مانده طلب ({{ currency }})</th><th></th></tr></thead>
+        <tbody>
+          {% for w in debts %}
+          <tr>
+            <td><a href="{{ url_for('settlement.detail', worker_id=w.id) }}">{{ w.name }}</a></td>
+            <td class="num {{ 'text-red' if w.balance > 0 else 'text-green' }}">{{ w.balance | money_fa }}</td>
+            <td><a href="{{ url_for('settlement.detail', worker_id=w.id) }}" class="btn btn-sm btn-outline">تسویه</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty">همه نیروها تسویه هستند ✅</div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h2>پروژه‌های تسویه‌نشده</h2><a href="{{ url_for('projects.index', status='') }}" class="btn btn-sm btn-outline">همه</a></div>
+    {% if unsettled %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>پروژه</th><th>وضعیت</th><th class="num">مبلغ</th></tr></thead>
+        <tbody>
+          {% for p in unsettled %}
+          <tr>
+            <td><a href="{{ url_for('projects.detail', project_id=p.id) }}">{{ p.name }}</a></td>
+            <td><span class="badge blue">{{ p.status | status }}</span></td>
+            <td class="num">{{ p.labor_amount | money_fa }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty">پروژه تسویه‌نشده‌ای وجود ندارد ✅</div>{% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Local database & secrets
+instance/*.db
+instance/*.sqlite3
+instance/secret_key
+*.db-journal
+
+# Backups produced by the app
+backups/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

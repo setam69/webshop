@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}پروژه‌ها{% endblock %}
+{% block heading %}پروژه‌ها{% endblock %}
+{% block content %}
+
+<div class="page-actions">
+  <a href="{{ url_for('projects.create') }}" class="btn btn-primary">➕ ثبت پروژه جدید</a>
+  <div class="spacer"></div>
+  <form class="filters" method="get">
+    <div class="field" style="margin:0">
+      <input type="text" name="q" placeholder="جستجوی نام پروژه یا مشتری" value="{{ q }}">
+    </div>
+    <div class="field" style="margin:0">
+      <select name="status">
+        <option value="">همه وضعیت‌ها</option>
+        {% for code in STATUS_ORDER %}
+        <option value="{{ code }}" {{ 'selected' if status == code }}>{{ STATUS_LABELS[code] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-outline" type="submit">فیلتر</button>
+  </form>
+</div>
+
+<div class="card">
+  {% if projects %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>نام پروژه</th><th>مشتری</th><th>تاریخ</th><th class="num">مبلغ کل ({{ currency }})</th><th>وضعیت</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td><a href="{{ url_for('projects.detail', project_id=p.id) }}">{{ p.name }}</a></td>
+          <td>{{ p.customer_name or '—' }}</td>
+          <td class="num">{{ p.project_date_jalali | fa if p.project_date_jalali else '—' }}</td>
+          <td class="num">{{ p.labor_amount | money_fa }}</td>
+          <td>
+            {% set cls = {'not_started':'gray','in_progress':'amber','done':'blue','settled':'green'} %}
+            <span class="badge {{ cls.get(p.status,'gray') }}">{{ p.status | status }}</span>
+          </td>
+          <td><a href="{{ url_for('projects.detail', project_id=p.id) }}" class="btn btn-sm btn-outline">جزئیات</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">پروژه‌ای یافت نشد. <a href="{{ url_for('projects.create') }}">ثبت پروژه جدید</a></div>
+  {% endif %}
+</div>
+
+{% endblock %}

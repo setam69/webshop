@@ -6,14 +6,16 @@ from flask import Flask, g
 
 from . import db, jalali, utils
 from .config import Config
+from .paths import resource_path
 
 
 def create_app(test_config=None):
+    # مسیر مطلق templates/static تا هم در اجرای عادی و هم در حالت exe درست باشد
     app = Flask(
         __name__,
         instance_relative_config=False,
-        template_folder=os.path.join(os.pardir, "templates"),
-        static_folder=os.path.join(os.pardir, "static"),
+        template_folder=resource_path("templates"),
+        static_folder=resource_path("static"),
     )
     app.config.from_object(Config)
     if test_config is not None:

@@ -4,8 +4,11 @@ import os
 import secrets
 from datetime import timedelta
 
+from .paths import app_data_dir
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+
+# ریشه داده‌های ماندگار: در حالت عادی ریشه پروژه، در حالت exe کنار فایل اجرایی.
+BASE_DIR = app_data_dir()
 INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
 
 

@@ -8,6 +8,8 @@ import click
 from flask import current_app, g
 from werkzeug.security import generate_password_hash
 
+from .paths import resource_path
+
 
 def get_db():
     """اتصال دیتابیس مخصوص همین درخواست را برمی‌گرداند (با کش در ``g``)."""
@@ -30,7 +32,10 @@ def close_db(e=None):
 def init_db():
     """ساختار جداول را ایجاد می‌کند و در صورت نبود، مدیر و تنظیمات پیش‌فرض می‌سازد."""
     db = get_db()
-    schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+    # مسیر schema.sql سازگار با اجرای عادی و حالت exe (PyInstaller)
+    schema_path = resource_path("payroll", "schema.sql")
+    if not os.path.exists(schema_path):
+        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
     with open(schema_path, "r", encoding="utf-8") as fh:
         db.executescript(fh.read())
     db.commit()

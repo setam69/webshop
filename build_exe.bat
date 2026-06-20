@@ -18,10 +18,29 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo --- در حال ساخت فایل اجرایی ...
-%PYEXE% -m PyInstaller --noconfirm PersianPayroll.spec
+echo --- پاک‌سازی build های قبلی (build, dist, spec های اضافی) ...
+if exist "build" rmdir /s /q "build"
+if exist "dist" rmdir /s /q "dist"
+REM حذف spec های قدیمی که ممکن است از اجرای اشتباه «pyinstaller run.py» ساخته شده باشند
+if exist "run.spec" del /q "run.spec"
+if exist "desktop.spec" del /q "desktop.spec"
+
+echo --- در حال ساخت فایل اجرایی (فقط از روی PersianPayroll.spec) ...
+%PYEXE% -m PyInstaller --clean --noconfirm PersianPayroll.spec
 if errorlevel 1 (
     echo ساخت فایل اجرایی ناموفق بود.
+    pause
+    exit /b 1
+)
+
+echo --- بررسی صحت باندل (schema.sql باید موجود باشد) ...
+if not exist "dist\PersianPayroll\_internal\payroll\schema.sql" (
+    echo خطا: فایل schema.sql در خروجی پیدا نشد. build معتبر نیست.
+    pause
+    exit /b 1
+)
+if not exist "dist\PersianPayroll\_internal\templates\base.html" (
+    echo خطا: قالب‌ها (templates) در خروجی پیدا نشدند. build معتبر نیست.
     pause
     exit /b 1
 )

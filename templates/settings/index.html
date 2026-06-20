@@ -41,29 +41,44 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><h2>بکاپ دیتابیس</h2></div>
-    <p>یک کپی کامل از پایگاه داده تهیه کنید. فایل‌ها در پوشه <code>backups</code> ذخیره می‌شوند.</p>
+    <div class="card-title"><h2>بکاپ و بازگردانی دیتابیس</h2></div>
+    <p class="hint">محل دیتابیس: <code>{{ db_path }}</code></p>
+    <p class="hint">محل بکاپ‌ها: <code>{{ backup_dir }}</code></p>
     <form method="post" action="{{ url_for('settings.backup_now') }}">
       <button class="btn btn-success" type="submit">📦 تهیه بکاپ جدید</button>
     </form>
     {% if backups %}
     <hr>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>فایل</th><th>نوع</th><th>تاریخ</th><th></th></tr></thead>
-        <tbody>
-          {% for b in backups %}
-          <tr>
-            <td>{{ b.name }}</td>
-            <td><span class="badge {{ 'blue' if b.kind == 'خودکار' else 'green' }}">{{ b.kind }}</span></td>
-            <td class="num">{{ b.mtime }}</td>
-            <td><a class="btn btn-sm btn-outline" href="{{ url_for('settings.backup_download', name=b.name) }}">دانلود</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="hint">برای بازگردانی (ریستور): برنامه را ببندید، فایل بکاپ را در <code>instance/payroll.db</code> کپی کنید و دوباره اجرا کنید.</p>
+    <h3>بازگردانی از بکاپ</h3>
+    <p class="hint">با بازگردانی، دیتابیس فعلی با فایل انتخابی جایگزین می‌شود. پیش از بازگردانی، به‌صورت خودکار از وضعیت فعلی بکاپ گرفته می‌شود.</p>
+    <form method="post" action="{{ url_for('settings.restore') }}"
+          data-confirm="آیا مطمئن هستید؟ دیتابیس فعلی با فایل انتخابی جایگزین می‌شود (ابتدا از وضعیت فعلی بکاپ گرفته می‌شود).">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>فایل</th><th>نوع</th><th>تاریخ</th><th></th></tr></thead>
+          <tbody>
+            {% for b in backups %}
+            <tr>
+              <td><input type="radio" name="backup_name" value="{{ b.name }}" style="width:auto"></td>
+              <td>{{ b.name }}</td>
+              <td><span class="badge {{ 'blue' if b.kind == 'خودکار' else 'green' }}">{{ b.kind }}</span></td>
+              <td class="num">{{ b.mtime }}</td>
+              <td><a class="btn btn-sm btn-outline" href="{{ url_for('settings.backup_download', name=b.name) }}">دانلود</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="custom_path">یا مسیر یک فایل دیتابیس دلخواه (مثلاً دیتابیس قدیمی)</label>
+        <input type="text" id="custom_path" name="custom_path" placeholder="C:\...\payroll.db">
+      </div>
+      <label style="font-weight:400;display:flex;gap:8px;align-items:center">
+        <input type="checkbox" name="allow_empty" value="1" style="width:auto">
+        اجازه بازگردانی حتی اگر فایل انتخابی خالی باشد (با احتیاط)
+      </label>
+      <button class="btn btn-danger" type="submit" style="margin-top:10px">♻ بازگردانی دیتابیس</button>
+    </form>
     {% endif %}
   </div>
 </div>

@@ -1,6 +1,7 @@
 """تست دود (smoke test) برای اطمینان از سلامت مسیرها و محاسبات اصلی."""
 
 import os
+import sqlite3
 import tempfile
 
 import pytest
@@ -11,17 +12,35 @@ from payroll.utils import compute_shares, format_money, parse_amount, parse_perc
 
 
 @pytest.fixture
-def client():
-    fd, path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
+def client(tmp_path):
     app = create_app({
         "TESTING": True,
-        "DATABASE": path,
+        "DATABASE": str(tmp_path / "payroll.db"),
+        "BACKUP_DIR": str(tmp_path / "backups"),
         "WTF_CSRF_ENABLED": False,
     })
     with app.test_client() as c:
         yield c
-    os.unlink(path)
+
+
+def _make_app(tmp_path):
+    """یک اپ آزمایشی با دیتابیس و پوشه بکاپ موقت می‌سازد."""
+    dbp = str(tmp_path / "payroll.db")
+    bdir = str(tmp_path / "backups")
+    app = create_app({"TESTING": True, "DATABASE": dbp, "BACKUP_DIR": bdir})
+    return app, dbp, bdir
+
+
+def _make_db(path, with_data=True, tables=("workers", "projects", "payments")):
+    """یک فایل دیتابیس ساده برای تست می‌سازد."""
+    con = sqlite3.connect(path)
+    for t in tables:
+        con.execute("CREATE TABLE %s (id INTEGER PRIMARY KEY, name TEXT)" % t)
+    if with_data:
+        con.execute("INSERT INTO workers (name) VALUES ('نمونه')")
+    con.commit()
+    con.close()
+    return path
 
 
 def login(client, username="admin", password="admin"):
@@ -214,3 +233,82 @@ def test_migration_preserves_old_db(tmp_path):
         row = db.execute("SELECT name, labor_amount, customer_total FROM projects WHERE id=1").fetchone()
         assert row["name"] == "قدیمی" and row["labor_amount"] == 8000000
         assert row["customer_total"] == 8000000  # backfill
+
+
+# --- حفاظت از داده: واردکردن امن و بازگردانی ---------------------------------
+def test_db_counts_and_has_real_data(tmp_path):
+    from payroll import db as dbmod
+    empty = _make_db(str(tmp_path / "e.db"), with_data=False)
+    full = _make_db(str(tmp_path / "f.db"), with_data=True)
+    assert dbmod.db_counts(str(tmp_path / "nope.db")) is None      # فایل ناموجود
+    assert dbmod.has_real_data(dbmod.db_counts(empty)) is False
+    assert dbmod.has_real_data(dbmod.db_counts(full)) is True
+
+
+def test_db_counts_does_not_create_file(tmp_path):
+    """db_counts نباید برای فایل ناموجود، فایل خالی بسازد."""
+    from payroll import db as dbmod
+    missing = str(tmp_path / "missing.db")
+    dbmod.db_counts(missing)
+    assert not os.path.exists(missing)
+
+
+def test_bootstrap_imports_legacy_when_target_empty(tmp_path, monkeypatch):
+    from payroll import db as dbmod
+    legacy = _make_db(str(tmp_path / "legacy.db"), with_data=True)
+    app, dbp, bdir = _make_app(tmp_path)
+    with app.app_context():
+        monkeypatch.setattr(dbmod, "_legacy_candidates", lambda target: [legacy])
+        assert dbmod.has_real_data(dbmod.db_counts(dbp)) is False   # مقصد خالی
+        imported = dbmod.bootstrap_database()
+        assert imported == legacy
+        assert dbmod.db_counts(dbp)["workers"] == 1                 # داده وارد شد
+
+
+def test_bootstrap_never_overwrites_populated_with_empty(tmp_path, monkeypatch):
+    """قاعده ۷: دیتابیس دارای اطلاعات نباید با خالی بازنویسی شود."""
+    from payroll import db as dbmod
+    app, dbp, bdir = _make_app(tmp_path)
+    with app.app_context():
+        d = dbmod.get_db()
+        d.execute("INSERT INTO workers (name, default_percent, is_active, created_at)"
+                  " VALUES ('A', 30, 1, 'now')")
+        d.commit()
+        before = dbmod.db_counts(dbp)["workers"]
+        legacy_empty = _make_db(str(tmp_path / "legacy_empty.db"), with_data=False)
+        monkeypatch.setattr(dbmod, "_legacy_candidates", lambda target: [legacy_empty])
+        assert dbmod.bootstrap_database() is None                   # چیزی وارد نشد
+        assert dbmod.db_counts(dbp)["workers"] == before            # بدون تغییر
+
+
+def test_restore_blocks_empty_over_populated(tmp_path):
+    """قاعده ۷: restore فایل خالی روی دیتابیس دارای داده، بدون تأیید مجاز نیست."""
+    from payroll import db as dbmod
+    app, dbp, bdir = _make_app(tmp_path)
+    with app.app_context():
+        d = dbmod.get_db()
+        d.execute("INSERT INTO workers (name, default_percent, is_active, created_at)"
+                  " VALUES ('A', 30, 1, 'now')")
+        d.commit()
+        empty_src = _make_db(str(tmp_path / "empty.db"), with_data=False)
+        ok, _ = dbmod.restore_database(empty_src, allow_empty=False)
+        assert ok is False
+        assert dbmod.db_counts(dbp)["workers"] == 1                 # داده دست‌نخورده
+
+        # یک بکاپ از وضعیت فعلی هم نباید لازم باشد چون کاری انجام نشد؛
+        # اما اگر allow_empty باشد باید اجازه دهد:
+        ok2, _ = dbmod.restore_database(empty_src, allow_empty=True)
+        assert ok2 is True
+
+
+def test_restore_populated_over_empty(tmp_path):
+    from payroll import db as dbmod
+    app, dbp, bdir = _make_app(tmp_path)
+    with app.app_context():
+        good = _make_db(str(tmp_path / "good.db"), with_data=True)
+        ok, _ = dbmod.restore_database(good)                        # مقصد خالی
+        assert ok is True
+        assert dbmod.db_counts(dbp)["workers"] == 1
+        # بکاپ pre_restore باید ساخته شده باشد
+        names = os.listdir(bdir)
+        assert any(n.startswith("pre_restore") for n in names)

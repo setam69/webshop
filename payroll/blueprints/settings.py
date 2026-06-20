@@ -11,7 +11,9 @@ from flask import (
 from werkzeug.security import generate_password_hash
 
 from ..auth import admin_required, login_required
-from ..db import get_db, get_setting, set_setting
+from ..db import (
+    create_backup, db_counts, get_db, get_setting, restore_database, set_setting,
+)
 from ..utils import parse_percent
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -69,6 +71,8 @@ def index():
         auto_backup_keep=get_setting("auto_backup_keep", "30"),
         session_timeout_minutes=get_setting("session_timeout_minutes", "30"),
         users=users, backups=backups,
+        db_path=current_app.config["DATABASE"],
+        backup_dir=current_app.config["BACKUP_DIR"],
     )
 
 
@@ -188,3 +192,32 @@ def backup_download():
         flash("فایل بکاپ یافت نشد.", "error")
         return redirect(url_for("settings.index"))
     return send_file(path, as_attachment=True, download_name=os.path.basename(name))
+
+
+# --- بازگردانی (Restore) ----------------------------------------------------
+@bp.route("/restore", methods=("POST",))
+@admin_required
+def restore():
+    """بازگردانی دیتابیس از یک بکاپ موجود یا یک فایل دیتابیس با مسیر دلخواه."""
+    backup_dir = current_app.config["BACKUP_DIR"]
+    name = (request.form.get("backup_name") or "").strip()
+    custom = (request.form.get("custom_path") or "").strip()
+    allow_empty = request.form.get("allow_empty") == "1"
+
+    if custom:
+        source = custom
+    elif name:
+        source = os.path.join(backup_dir, os.path.basename(name))
+    else:
+        flash("هیچ فایلی برای بازگردانی انتخاب نشد.", "error")
+        return redirect(url_for("settings.index"))
+
+    # نمایش تعداد رکوردهای فایل انتخابی برای اطمینان کاربر
+    counts = db_counts(source)
+    ok, message = restore_database(source, allow_empty=allow_empty)
+    if ok and counts:
+        message += " (نیروها: %d، پروژه‌ها: %d، پرداخت‌ها: %d)" % (
+            counts.get("workers", 0), counts.get("projects", 0), counts.get("payments", 0),
+        )
+    flash(message, "success" if ok else "error")
+    return redirect(url_for("settings.index"))

@@ -45,12 +45,13 @@ if not exist "dist\PersianPayroll\_internal\templates\base.html" (
     exit /b 1
 )
 
-echo --- آماده‌سازی پوشه تحویل (README، چک‌لیست، پوشه‌های داده) ...
+echo --- آماده‌سازی پوشه تحویل (README و چک‌لیست) ...
 set "OUT=dist\PersianPayroll"
 copy /Y "DIST_README.md" "%OUT%\README.md" >nul
 copy /Y "TEST_CHECKLIST.md" "%OUT%\TEST_CHECKLIST.md" >nul
-if not exist "%OUT%\instance" mkdir "%OUT%\instance"
-if not exist "%OUT%\backups" mkdir "%OUT%\backups"
+REM توجه: دیتابیس و بکاپ‌ها داخل پوشه dist ساخته نمی‌شوند.
+REM محل ثابت داده‌ها:  %%LOCALAPPDATA%%\PersianPayroll
+REM به همین دلیل build/rebuild هرگز دیتابیس کاربر را پاک نمی‌کند.
 
 echo.
 echo ============================================================

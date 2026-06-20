@@ -4,12 +4,13 @@ import os
 import secrets
 from datetime import timedelta
 
-from .paths import app_data_dir
+from .paths import data_home
 
 
-# ریشه داده‌های ماندگار: در حالت عادی ریشه پروژه، در حالت exe کنار فایل اجرایی.
-BASE_DIR = app_data_dir()
-INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+# پوشه ثابت و امن داده‌های کاربر (خارج از پوشه برنامه/dist).
+#   حالت exe ویندوز:  %LOCALAPPDATA%\PersianPayroll
+#   اجرای از کد منبع:  <project>/instance
+DATA_HOME = data_home()
 
 
 def _load_or_create_secret_key():
@@ -17,8 +18,8 @@ def _load_or_create_secret_key():
     env_key = os.environ.get("SECRET_KEY")
     if env_key:
         return env_key
-    os.makedirs(INSTANCE_DIR, exist_ok=True)
-    key_path = os.path.join(INSTANCE_DIR, "secret_key")
+    os.makedirs(DATA_HOME, exist_ok=True)
+    key_path = os.path.join(DATA_HOME, "secret_key")
     if os.path.exists(key_path):
         with open(key_path, "r", encoding="utf-8") as fh:
             return fh.read().strip()
@@ -30,10 +31,9 @@ def _load_or_create_secret_key():
 
 class Config:
     SECRET_KEY = _load_or_create_secret_key()
-    DATABASE = os.environ.get(
-        "PAYROLL_DB", os.path.join(INSTANCE_DIR, "payroll.db")
-    )
-    BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+    # دیتابیس مستقیماً داخل پوشه داده‌ها (نه زیرپوشه instance) قرار می‌گیرد.
+    DATABASE = os.environ.get("PAYROLL_DB", os.path.join(DATA_HOME, "payroll.db"))
+    BACKUP_DIR = os.path.join(DATA_HOME, "backups")
 
     # نام و رمز کاربر مدیر پیش‌فرض (فقط در اولین راه‌اندازی ساخته می‌شود)
     DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
@@ -43,3 +43,4 @@ class Config:
     SESSION_COOKIE_SAMESITE = "Lax"
     # سقف عمر کوکی نشست؛ کنترل اصلی خروج، «قفل بیکاری» در auth.py است.
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
+

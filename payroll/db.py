@@ -1,6 +1,7 @@
 """لایه دیتابیس SQLite: اتصال، راه‌اندازی و توابع کمکی پرس‌وجو."""
 
 import os
+import shutil
 import sqlite3
 from datetime import datetime
 
@@ -8,7 +9,7 @@ import click
 from flask import current_app, g
 from werkzeug.security import generate_password_hash
 
-from .paths import resource_path
+from .paths import exe_dir, project_root, resource_path
 
 
 def get_db():
@@ -84,6 +85,171 @@ def migrate():
         )
     db.commit()
     return changed
+
+
+# ===========================================================================
+#  حفاظت از داده: شمارش، تشخیص دیتابیس قدیمی، واردکردن امن و بازگردانی
+# ===========================================================================
+def db_counts(path):
+    """تعداد رکوردهای کلیدی یک فایل دیتابیس را برمی‌گرداند.
+
+    اگر فایل وجود نداشته باشد یا دیتابیس معتبر نباشد، ``None`` برمی‌گرداند.
+    مهم: برای فایل ناموجود **اتصال ساخته نمی‌شود** تا فایل خالی ایجاد نشود.
+    """
+    if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+        return None
+    con = None
+    try:
+        con = sqlite3.connect(path)
+        tables = {r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        counts = {}
+        for t in ("workers", "projects", "payments"):
+            counts[t] = (
+                con.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0]
+                if t in tables else 0
+            )
+        return counts
+    except sqlite3.DatabaseError:
+        return None
+    finally:
+        if con is not None:
+            con.close()
+
+
+def has_real_data(counts):
+    """آیا دیتابیس داده‌ی واقعی دارد؟ (مجموع نیروها + پروژه‌ها + پرداخت‌ها > ۰)"""
+    if not counts:
+        return False
+    return (counts.get("workers", 0) + counts.get("projects", 0)
+            + counts.get("payments", 0)) > 0
+
+
+def _legacy_candidates(target):
+    """فهرست مسیرهای دیتابیس قدیمی محتمل (به‌ترتیب اولویت) به‌جز خود مقصد."""
+    cands = [
+        os.path.join(exe_dir(), "instance", "payroll.db"),   # ساختار قدیمی dist
+        os.path.join(exe_dir(), "payroll.db"),
+        os.path.join(project_root(), "instance", "payroll.db"),
+    ]
+    seen, result = set(), []
+    target_abs = os.path.abspath(target)
+    for c in cands:
+        ca = os.path.abspath(c)
+        if ca == target_abs or ca in seen:
+            continue
+        seen.add(ca)
+        if os.path.exists(c):
+            result.append(c)
+    return result
+
+
+def bootstrap_database():
+    """پیش از راه‌اندازی، در صورت لزوم دیتابیس قدیمی را به‌صورت امن وارد می‌کند.
+
+    قواعد ایمنی:
+      * اگر دیتابیس مقصد داده‌ی واقعی دارد، هرگز بازنویسی نمی‌شود (قاعده ۷).
+      * فقط وقتی مقصد خالی/ناموجود است و یک دیتابیس قدیمی دارای داده پیدا شود،
+        آن دیتابیس کپی می‌شود (قاعده ۶).
+      * پیش از هر کپی، اگر فایل مقصدی وجود داشته باشد بکاپ گرفته می‌شود (قاعده ۸).
+    خروجی: مسیر دیتابیس قدیمیِ واردشده یا ``None``.
+    """
+    target = current_app.config["DATABASE"]
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    os.makedirs(current_app.config["BACKUP_DIR"], exist_ok=True)
+
+    if has_real_data(db_counts(target)):
+        return None  # مقصد داده دارد → دست نمی‌زنیم
+
+    for cand in _legacy_candidates(target):
+        if has_real_data(db_counts(cand)):
+            # بکاپ از مقصد فعلی (در صورت وجود) پیش از واردکردن
+            if os.path.exists(target):
+                _backup_file(target, "pre_import")
+            shutil.copy2(cand, target)
+            # حذف ژورنال‌های احتمالی مقصد قدیمی
+            for ext in ("-journal", "-wal", "-shm"):
+                jp = target + ext
+                if os.path.exists(jp):
+                    try:
+                        os.remove(jp)
+                    except OSError:
+                        pass
+            return cand
+    return None
+
+
+def detect_legacy_with_data():
+    """اگر دیتابیس قدیمی دارای داده در کنار برنامه باشد، مسیر آن را برمی‌گرداند.
+
+    برای «پیشنهاد بازگردانی» وقتی مقصد هم داده دارد (قاعده ۵) استفاده می‌شود.
+    """
+    target = current_app.config["DATABASE"]
+    for cand in _legacy_candidates(target):
+        if has_real_data(db_counts(cand)):
+            return cand
+    return None
+
+
+def _backup_file(src, prefix):
+    """کپی امن از یک فایل دیتابیس به پوشه backups با مهر زمانی."""
+    backup_dir = current_app.config["BACKUP_DIR"]
+    os.makedirs(backup_dir, exist_ok=True)
+    if not src or not os.path.exists(src):
+        return None
+    dest = os.path.join(
+        backup_dir, "%s_%s.db" % (prefix, datetime.now().strftime("%Y%m%d_%H%M%S"))
+    )
+    src_conn = sqlite3.connect(src)
+    dst_conn = sqlite3.connect(dest)
+    try:
+        with dst_conn:
+            src_conn.backup(dst_conn)
+    finally:
+        src_conn.close()
+        dst_conn.close()
+    return dest
+
+
+def restore_database(source_path, allow_empty=False):
+    """دیتابیس مقصد را از روی یک فایل بکاپ/دیتابیس انتخابی بازمی‌گرداند.
+
+    ایمنی:
+      * فایل مبدأ باید یک دیتابیس معتبر باشد.
+      * اگر مبدأ داده ندارد ولی مقصد دارد، بدون ``allow_empty`` انجام نمی‌شود
+        (قاعده ۷ — جلوگیری از overwrite داده با خالی).
+      * پیش از بازگردانی، از مقصد فعلی بکاپ گرفته می‌شود (قاعده ۸).
+    خروجی: (موفقیت, پیام).
+    """
+    target = current_app.config["DATABASE"]
+    if not source_path or not os.path.exists(source_path):
+        return False, "فایل انتخاب‌شده پیدا نشد."
+    src_counts = db_counts(source_path)
+    if src_counts is None:
+        return False, "فایل انتخاب‌شده یک دیتابیس معتبر نیست."
+
+    if not has_real_data(src_counts) and has_real_data(db_counts(target)) and not allow_empty:
+        return False, (
+            "فایل انتخابی خالی است اما دیتابیس فعلی دارای اطلاعات است؛ "
+            "برای جلوگیری از پاک‌شدن داده، بازگردانی انجام نشد."
+        )
+
+    # بکاپ از وضعیت فعلی پیش از بازگردانی
+    if os.path.exists(target):
+        _backup_file(target, "pre_restore")
+
+    # بستن اتصال جاری تا کپی فایل روی ویندوز بدون قفل انجام شود
+    close_db()
+    shutil.copy2(source_path, target)
+    for ext in ("-journal", "-wal", "-shm"):
+        jp = target + ext
+        if os.path.exists(jp):
+            try:
+                os.remove(jp)
+            except OSError:
+                pass
+    return True, "بازگردانی با موفقیت انجام شد."
 
 
 def _seed_defaults(db):

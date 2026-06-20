@@ -32,10 +32,13 @@ def create_app(test_config=None):
     demo.init_app(app)
 
     # راه‌اندازی امن دیتابیس در هر اجرا:
+    #   ۰) واردکردن امن دیتابیس قدیمی اگر مقصد خالی است (بدون بازنویسی داده)
     #   ۱) ساخت جداول پایه در صورت نبود
     #   ۲) بکاپ خودکار پیش از هر تغییر ساختار (داده قبلی حفظ می‌شود)
     #   ۳) مهاجرت افزایشی و امن ساختار
     with app.app_context():
+        if not app.config.get("TESTING"):
+            db.bootstrap_database()
         db.init_db()
         db.auto_backup()
         db.migrate()

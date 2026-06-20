@@ -98,3 +98,55 @@ STATUS_ORDER = ["not_started", "in_progress", "done", "settled"]
 
 def status_label(code):
     return STATUS_LABELS.get(code, code or "")
+
+
+# روش‌های پرداخت ------------------------------------------------------------
+PAYMENT_METHODS = {
+    "cash": "نقدی",
+    "card": "کارت‌به‌کارت",
+    "transfer": "انتقال بانکی",
+    "check": "چک",
+    "other": "سایر",
+}
+PAYMENT_METHOD_ORDER = ["cash", "card", "transfer", "check", "other"]
+
+
+def method_label(code):
+    return PAYMENT_METHODS.get(code, code or "—")
+
+
+# دسته‌های هزینه جانبی -------------------------------------------------------
+EXPENSE_CATEGORIES = {
+    "fuel": "بنزین",
+    "food": "غذا",
+    "consumable": "ابزار مصرفی",
+    "goods": "خرید جنس",
+    "transport": "ایاب‌وذهاب",
+    "other": "سایر هزینه‌ها",
+}
+EXPENSE_CATEGORY_ORDER = ["fuel", "food", "consumable", "goods", "transport", "other"]
+
+
+def expense_label(code):
+    return EXPENSE_CATEGORIES.get(code, code or "سایر هزینه‌ها")
+
+
+# وضعیت دریافت پول از مشتری --------------------------------------------------
+CUSTOMER_STATUS_LABELS = {
+    "not_received": "دریافت نشده",
+    "partial": "دریافت ناقص",
+    "received": "دریافت کامل",
+}
+
+
+def customer_status(total, received):
+    """وضعیت دریافت از مشتری را بر اساس مبلغ کل و دریافتی تعیین می‌کند."""
+    if received <= 0:
+        return "not_received"
+    if received < (total or 0):
+        return "partial"
+    return "received"
+
+
+def customer_status_label(code):
+    return CUSTOMER_STATUS_LABELS.get(code, code or "")

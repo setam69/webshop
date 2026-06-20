@@ -35,12 +35,22 @@
                required value="{{ f.labor_amount | money if f.labor_amount else '' }}">
       </div>
       <div class="field">
+        <label for="customer_total">مبلغ کل قابل دریافت از مشتری ({{ currency }})</label>
+        <input type="text" id="customer_total" name="customer_total" class="money" inputmode="numeric"
+               value="{{ f.customer_total | money if f.customer_total else '' }}">
+        <span class="hint">اگر خالی بماند، برابر مبلغ دستمزد در نظر گرفته می‌شود.</span>
+      </div>
+      <div class="field">
         <label for="address">آدرس / محل پروژه</label>
         <input type="text" id="address" name="address" value="{{ f.address or '' }}">
       </div>
       <div class="field full">
-        <label for="note">توضیحات</label>
+        <label for="note">توضیحات پروژه</label>
         <textarea id="note" name="note">{{ f.note or '' }}</textarea>
+      </div>
+      <div class="field full">
+        <label for="internal_note">یادداشت داخلی <span class="hint">(در چاپ عمومی قابل مخفی‌کردن است)</span></label>
+        <textarea id="internal_note" name="internal_note">{{ f.internal_note or '' }}</textarea>
       </div>
     </div>
   </div>

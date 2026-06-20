@@ -29,9 +29,14 @@ def create_app(test_config=None):
     from . import demo
     demo.init_app(app)
 
-    # اطمینان از وجود جداول در اولین اجرا
+    # راه‌اندازی امن دیتابیس در هر اجرا:
+    #   ۱) ساخت جداول پایه در صورت نبود
+    #   ۲) بکاپ خودکار پیش از هر تغییر ساختار (داده قبلی حفظ می‌شود)
+    #   ۳) مهاجرت افزایشی و امن ساختار
     with app.app_context():
         db.init_db()
+        db.auto_backup()
+        db.migrate()
 
     return app
 
@@ -44,6 +49,9 @@ def _register_jinja(app):
     app.jinja_env.filters["fa"] = jalali.to_persian_digits
     app.jinja_env.filters["jalali"] = jalali.gregorian_iso_to_jalali
     app.jinja_env.filters["status"] = utils.status_label
+    app.jinja_env.filters["method"] = utils.method_label
+    app.jinja_env.filters["expense"] = utils.expense_label
+    app.jinja_env.filters["cstatus"] = utils.customer_status_label
 
     @app.context_processor
     def inject_globals():
@@ -56,6 +64,10 @@ def _register_jinja(app):
             "currency": currency,
             "STATUS_LABELS": utils.STATUS_LABELS,
             "STATUS_ORDER": utils.STATUS_ORDER,
+            "PAYMENT_METHODS": utils.PAYMENT_METHODS,
+            "PAYMENT_METHOD_ORDER": utils.PAYMENT_METHOD_ORDER,
+            "EXPENSE_CATEGORIES": utils.EXPENSE_CATEGORIES,
+            "EXPENSE_CATEGORY_ORDER": utils.EXPENSE_CATEGORY_ORDER,
             "current_user": g.get("user"),
         }
 
@@ -64,6 +76,7 @@ def _register_blueprints(app):
     from . import auth
     from .blueprints import (
         dashboard, workers, projects, payments, settlement, reports, settings,
+        expenses, customer,
     )
 
     app.register_blueprint(auth.bp)
@@ -74,3 +87,5 @@ def _register_blueprints(app):
     app.register_blueprint(settlement.bp)
     app.register_blueprint(reports.bp)
     app.register_blueprint(settings.bp)
+    app.register_blueprint(expenses.bp)
+    app.register_blueprint(customer.bp)

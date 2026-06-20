@@ -20,6 +20,22 @@
         <input type="text" id="default_shop_percent" name="default_shop_percent" value="{{ default_shop_percent }}">
         <span class="hint">اگر خالی بماند، سهم مغازه به صورت خودکار از باقی‌مانده محاسبه می‌شود.</span>
       </div>
+      <hr>
+      <div class="field">
+        <label style="font-weight:400;display:flex;gap:8px;align-items:center">
+          <input type="checkbox" name="auto_backup_enabled" value="1" style="width:auto" {{ 'checked' if auto_backup_enabled }}>
+          بکاپ خودکار هنگام اجرای برنامه
+        </label>
+      </div>
+      <div class="field">
+        <label for="auto_backup_keep">تعداد بکاپ‌های خودکار برای نگهداری</label>
+        <input type="number" id="auto_backup_keep" name="auto_backup_keep" min="1" max="500" value="{{ auto_backup_keep }}">
+        <span class="hint">فقط این تعداد بکاپ خودکار آخر نگه داشته می‌شود (بکاپ‌های دستی حذف نمی‌شوند).</span>
+      </div>
+      <div class="field">
+        <label for="session_timeout_minutes">خروج خودکار پس از بیکاری (دقیقه)</label>
+        <input type="number" id="session_timeout_minutes" name="session_timeout_minutes" min="1" max="1440" value="{{ session_timeout_minutes }}">
+      </div>
       <button class="btn btn-primary" type="submit">💾 ذخیره تنظیمات</button>
     </form>
   </div>
@@ -34,11 +50,12 @@
     <hr>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>فایل</th><th>تاریخ</th><th></th></tr></thead>
+        <thead><tr><th>فایل</th><th>نوع</th><th>تاریخ</th><th></th></tr></thead>
         <tbody>
           {% for b in backups %}
           <tr>
             <td>{{ b.name }}</td>
+            <td><span class="badge {{ 'blue' if b.kind == 'خودکار' else 'green' }}">{{ b.kind }}</span></td>
             <td class="num">{{ b.mtime }}</td>
             <td><a class="btn btn-sm btn-outline" href="{{ url_for('settings.backup_download', name=b.name) }}">دانلود</a></td>
           </tr>
@@ -46,6 +63,7 @@
         </tbody>
       </table>
     </div>
+    <p class="hint">برای بازگردانی (ریستور): برنامه را ببندید، فایل بکاپ را در <code>instance/payroll.db</code> کپی کنید و دوباره اجرا کنید.</p>
     {% endif %}
   </div>
 </div>
@@ -53,6 +71,7 @@
 <div class="card">
   <div class="card-title"><h2>مدیریت کاربران پنل</h2></div>
   {% if current_user.role == 'admin' %}
+  <p class="hint">🔐 برای تغییر رمز مدیر (admin)، در ردیف همان کاربر، رمز جدید را در کادر «رمز جدید» وارد کرده و «تغییر رمز» را بزنید. رمزها به‌صورت hash امن ذخیره می‌شوند.</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>نام کاربری</th><th>نام</th><th>نقش</th><th>وضعیت</th><th>عملیات</th></tr></thead>

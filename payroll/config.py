@@ -2,6 +2,7 @@
 
 import os
 import secrets
+from datetime import timedelta
 
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
@@ -37,3 +38,5 @@ class Config:
 
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    # سقف عمر کوکی نشست؛ کنترل اصلی خروج، «قفل بیکاری» در auth.py است.
+    PERMANENT_SESSION_LIFETIME = timedelta(days=1)

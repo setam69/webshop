@@ -22,9 +22,17 @@
     <div class="label">مجموع سهم نیروها</div>
     <div class="value">{{ stats.total_workers_share | money_fa }} <span class="unit">{{ currency }}</span></div>
   </div>
-  <div class="stat green">
-    <div class="label">سود / سهم مغازه</div>
+  <div class="stat">
+    <div class="label">سهم مغازه (قبل از هزینه‌ها)</div>
     <div class="value">{{ stats.shop_share | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+  <div class="stat">
+    <div class="label">مجموع هزینه‌های جانبی</div>
+    <div class="value">{{ stats.total_expenses | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+  <div class="stat green">
+    <div class="label">مانده واقعی مغازه (بعد از هزینه‌ها)</div>
+    <div class="value">{{ stats.shop_real | money_fa }} <span class="unit">{{ currency }}</span></div>
   </div>
   <div class="stat amber">
     <div class="label">پروژه‌های تسویه‌نشده</div>
@@ -33,6 +41,10 @@
   <div class="stat red">
     <div class="label">مجموع بدهی به نیروها</div>
     <div class="value">{{ stats.total_debt | money_fa }} <span class="unit">{{ currency }}</span></div>
+  </div>
+  <div class="stat amber">
+    <div class="label">مجموع طلب از مشتری‌ها</div>
+    <div class="value">{{ stats.customer_receivable | money_fa }} <span class="unit">{{ currency }}</span></div>
   </div>
 </div>
 

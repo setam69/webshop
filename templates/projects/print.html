@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>پروژه: {{ project.name }}</title>
+  <style>
+    body { font-family: Tahoma, "Segoe UI", sans-serif; direction: rtl; color: #1f2733; padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 18px 0 8px; border-bottom: 2px solid #2f6fed; padding-bottom: 4px; }
+    .meta { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+    th, td { border: 1px solid #cbd2dc; padding: 7px 9px; text-align: right; }
+    th { background: #eef2f8; }
+    .num { font-variant-numeric: tabular-nums; }
+    .kv td:first-child { background: #f7f9fc; width: 40%; font-weight: 600; }
+    .toolbar { margin-bottom: 16px; }
+    .total-row td { font-weight: 700; background: #f1f6ff; }
+    @media print { .toolbar { display: none; } body { padding: 0; } }
+    button, label.cb { padding: 8px 14px; font-family: inherit; font-size: 14px; }
+    button { cursor: pointer; border: 1px solid #2f6fed; background: #2f6fed; color: #fff; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">🖨 چاپ / ذخیره PDF</button>
+    {% if show_notes %}
+      <a href="{{ url_for('projects.print_view', project_id=project.id, notes='0') }}"><label class="cb">مخفی‌کردن یادداشت‌های داخلی</label></a>
+    {% else %}
+      <a href="{{ url_for('projects.print_view', project_id=project.id, notes='1') }}"><label class="cb">نمایش یادداشت‌های داخلی</label></a>
+    {% endif %}
+  </div>
+
+  <h1>{{ project.name }}</h1>
+  <div class="meta">وضعیت: {{ project.status | status }} — تاریخ پروژه: {{ project.project_date_jalali or '—' }}</div>
+
+  <h2>اطلاعات پروژه</h2>
+  <table class="kv">
+    <tr><td>نام مشتری</td><td>{{ project.customer_name or '—' }}</td></tr>
+    <tr><td>آدرس</td><td>{{ project.address or '—' }}</td></tr>
+    <tr><td>مبلغ کل دستمزد پروژه</td><td class="num">{{ fin.labor_amount | money }} {{ currency }}</td></tr>
+    {% if project.note %}<tr><td>توضیحات</td><td>{{ project.note }}</td></tr>{% endif %}
+    {% if show_notes and project.internal_note %}<tr><td>یادداشت داخلی</td><td>{{ project.internal_note }}</td></tr>{% endif %}
+  </table>
+
+  <h2>نیروها، سهم و پرداخت‌ها</h2>
+  <table>
+    <thead><tr><th>نیرو</th><th>درصد</th><th>سهم</th><th>پرداخت‌شده</th><th>مانده طلب</th></tr></thead>
+    <tbody>
+      {% for w in workers %}
+      <tr>
+        <td>{{ w.name }}</td>
+        <td class="num">{{ w.percent | percent }}٪</td>
+        <td class="num">{{ w.share_amount | money }}</td>
+        <td class="num">{{ w.paid | money }}</td>
+        <td class="num">{{ w.balance | money }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="total-row"><td>مجموع سهم نیروها</td><td></td><td class="num">{{ fin.workers_share | money }}</td><td colspan="2"></td></tr>
+    </tbody>
+  </table>
+
+  {% if expenses %}
+  <h2>هزینه‌های جانبی</h2>
+  <table>
+    <thead><tr><th>دسته</th><th>مبلغ</th><th>توضیح</th></tr></thead>
+    <tbody>
+      {% for e in expenses %}
+      <tr><td>{{ e.category | expense }}</td><td class="num">{{ e.amount | money }}</td><td>{{ e.note or '—' }}</td></tr>
+      {% endfor %}
+      <tr class="total-row"><td>مجموع هزینه‌ها</td><td class="num">{{ fin.expenses_total | money }}</td><td></td></tr>
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>سهم نهایی مغازه</h2>
+  <table class="kv">
+    <tr><td>سهم مغازه قبل از هزینه‌ها</td><td class="num">{{ fin.shop_before_expenses | money }} {{ currency }}</td></tr>
+    <tr><td>مجموع هزینه‌های جانبی</td><td class="num">{{ fin.expenses_total | money }} {{ currency }}</td></tr>
+    <tr class="total-row"><td>مانده واقعی مغازه</td><td class="num">{{ fin.shop_after_expenses | money }} {{ currency }}</td></tr>
+  </table>
+
+  <h2>وضعیت دریافت از مشتری</h2>
+  <table class="kv">
+    <tr><td>مبلغ کل قابل دریافت</td><td class="num">{{ fin.customer_total | money }} {{ currency }}</td></tr>
+    <tr><td>دریافت‌شده</td><td class="num">{{ fin.customer_received | money }} {{ currency }}</td></tr>
+    <tr><td>مانده طلب از مشتری</td><td class="num">{{ fin.customer_balance | money }} {{ currency }}</td></tr>
+    <tr><td>وضعیت</td><td>{{ fin.customer_status | cstatus }}</td></tr>
+  </table>
+
+  {% if customer_payments %}
+  <table>
+    <thead><tr><th>مبلغ دریافتی</th><th>روش</th><th>تاریخ</th><th>توضیح</th></tr></thead>
+    <tbody>
+      {% for c in customer_payments %}
+      <tr><td class="num">{{ c.amount | money }}</td><td>{{ c.method | method }}</td><td class="num">{{ c.receive_date_jalali or '—' }}</td><td>{{ c.note or '—' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</body>
+</html>

@@ -32,6 +32,8 @@ def seed_demo(reset=False):
     if reset:
         db.executescript(
             "DELETE FROM payments;"
+            "DELETE FROM customer_payments;"
+            "DELETE FROM expenses;"
             "DELETE FROM project_workers;"
             "DELETE FROM projects;"
             "DELETE FROM workers;"
@@ -61,10 +63,11 @@ def seed_demo(reset=False):
     labor = 10_000_000
     pid = db.execute(
         "INSERT INTO projects (name, customer_name, project_date, project_date_jalali,"
-        " address, labor_amount, note, status, created_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?)",
+        " address, labor_amount, customer_total, note, internal_note, status, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?)",
         ("پروژه نمونه نصب", "آقای کریمی", iso_today, j_today,
-         "تهران، خیابان نمونه", labor, "پروژه برای آزمایش محاسبات", now),
+         "تهران، خیابان نمونه", labor, labor,
+         "پروژه برای آزمایش محاسبات", "یادداشت داخلی نمونه", now),
     ).lastrowid
 
     # هر نیرو ۳۰٪ → سهم مغازه ۴۰٪
@@ -74,6 +77,18 @@ def seed_demo(reset=False):
             " VALUES (?, ?, ?, ?)",
             (pid, wid, 30, worker_share(labor, 30)),
         )
+
+    # یک هزینه جانبی و یک دریافت بخشی از مشتری برای نمونه
+    db.execute(
+        "INSERT INTO expenses (project_id, category, amount, expense_date,"
+        " expense_date_jalali, note, created_at) VALUES (?, 'fuel', ?, ?, ?, ?, ?)",
+        (pid, 200_000, iso_today, j_today, "بنزین رفت‌وآمد", now),
+    )
+    db.execute(
+        "INSERT INTO customer_payments (project_id, amount, method, receive_date,"
+        " receive_date_jalali, note, created_at) VALUES (?, ?, 'cash', ?, ?, ?, ?)",
+        (pid, 5_000_000, iso_today, j_today, "پیش‌پرداخت مشتری", now),
+    )
     db.commit()
 
     share = worker_share(labor, 30)

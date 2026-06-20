@@ -17,13 +17,20 @@
 <div class="row-2">
   <div class="card">
     <div class="card-title"><h2>ثبت پرداخت جدید</h2></div>
-    <form method="post" action="{{ url_for('payments.create') }}">
+    <form method="post" action="{{ url_for('payments.create') }}" class="payment-form" data-balance="{{ totals.balance }}">
       <input type="hidden" name="worker_id" value="{{ worker.id }}">
       <input type="hidden" name="back" value="{{ url_for('settlement.detail', worker_id=worker.id) }}">
+      <input type="hidden" name="confirm_overpay" value="0">
       <div class="form-grid">
         <div class="field">
           <label>مبلغ ({{ currency }})</label>
           <input type="text" class="money" name="amount" inputmode="numeric" required>
+        </div>
+        <div class="field">
+          <label>روش پرداخت</label>
+          <select name="method">
+            {% for code in PAYMENT_METHOD_ORDER %}<option value="{{ code }}">{{ PAYMENT_METHODS[code] }}</option>{% endfor %}
+          </select>
         </div>
         <div class="field">
           <label>تاریخ (شمسی)</label>
@@ -82,20 +89,24 @@
   {% if payments %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">مبلغ</th><th>تاریخ</th><th>پروژه</th><th>توضیح</th><th></th></tr></thead>
+      <thead><tr><th class="num">مبلغ</th><th>روش</th><th>تاریخ</th><th>پروژه</th><th>توضیح</th><th></th></tr></thead>
       <tbody>
         {% for p in payments %}
         <tr>
           <td class="num">{{ p.amount | money_fa }}</td>
+          <td>{{ p.method | method }}</td>
           <td class="num">{{ p.payment_date_jalali | fa if p.payment_date_jalali else '—' }}</td>
           <td>{{ p.project_name or 'تسویه کلی' }}</td>
           <td style="white-space:normal">{{ p.note or '—' }}</td>
           <td>
-            <form class="inline-form" method="post" action="{{ url_for('payments.delete', payment_id=p.id) }}"
-                  data-confirm="حذف این پرداخت؟">
-              <input type="hidden" name="back" value="{{ url_for('settlement.detail', worker_id=worker.id) }}">
-              <button class="btn btn-sm btn-danger" type="submit">حذف</button>
-            </form>
+            <div class="btn-bar">
+              <a class="btn btn-sm btn-outline" href="{{ url_for('payments.edit', payment_id=p.id, back=url_for('settlement.detail', worker_id=worker.id)) }}">ویرایش</a>
+              <form class="inline-form" method="post" action="{{ url_for('payments.delete', payment_id=p.id) }}"
+                    data-confirm="حذف این پرداخت؟">
+                <input type="hidden" name="back" value="{{ url_for('settlement.detail', worker_id=worker.id) }}">
+                <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+              </form>
+            </div>
           </td>
         </tr>
         {% endfor %}

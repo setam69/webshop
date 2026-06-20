@@ -8,7 +8,7 @@
   <div class="spacer"></div>
   <form class="filters" method="get">
     <div class="field" style="margin:0">
-      <input type="text" name="q" placeholder="جستجوی نام پروژه یا مشتری" value="{{ q }}">
+      <input type="text" name="q" placeholder="جستجو: نام پروژه، مشتری، نیرو، تاریخ" value="{{ q }}" style="min-width:240px">
     </div>
     <div class="field" style="margin:0">
       <select name="status">
@@ -16,6 +16,13 @@
         {% for code in STATUS_ORDER %}
         <option value="{{ code }}" {{ 'selected' if status == code }}>{{ STATUS_LABELS[code] }}</option>
         {% endfor %}
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <select name="pay">
+        <option value="">دریافت از مشتری: همه</option>
+        <option value="unpaid" {{ 'selected' if pay == 'unpaid' }}>تسویه‌نشده با مشتری</option>
+        <option value="paid" {{ 'selected' if pay == 'paid' }}>تسویه‌شده با مشتری</option>
       </select>
     </div>
     <button class="btn btn-outline" type="submit">فیلتر</button>
@@ -27,7 +34,8 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>نام پروژه</th><th>مشتری</th><th>تاریخ</th><th class="num">مبلغ کل ({{ currency }})</th><th>وضعیت</th><th></th></tr>
+        <tr><th>نام پروژه</th><th>مشتری</th><th>تاریخ</th><th class="num">مبلغ کل ({{ currency }})</th>
+          <th class="num">مانده مشتری</th><th>وضعیت</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in projects %}
@@ -36,6 +44,7 @@
           <td>{{ p.customer_name or '—' }}</td>
           <td class="num">{{ p.project_date_jalali | fa if p.project_date_jalali else '—' }}</td>
           <td class="num">{{ p.labor_amount | money_fa }}</td>
+          <td class="num {{ 'text-red' if p.customer_balance > 0 else 'text-green' }}">{{ p.customer_balance | money_fa }}</td>
           <td>
             {% set cls = {'not_started':'gray','in_progress':'amber','done':'blue','settled':'green'} %}
             <span class="badge {{ cls.get(p.status,'gray') }}">{{ p.status | status }}</span>

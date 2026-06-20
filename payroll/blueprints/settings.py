@@ -35,6 +35,24 @@ def index():
             set_setting("default_shop_percent", "")
         set_setting("currency", currency)
         set_setting("shop_name", shop_name)
+
+        # بکاپ خودکار
+        set_setting("auto_backup_enabled", "1" if request.form.get("auto_backup_enabled") else "0")
+        keep_raw = (request.form.get("auto_backup_keep") or "30").strip()
+        try:
+            keep = max(1, min(int(keep_raw), 500))
+        except ValueError:
+            keep = 30
+        set_setting("auto_backup_keep", str(keep))
+
+        # قفل بیکاری (دقیقه)
+        timeout_raw = (request.form.get("session_timeout_minutes") or "30").strip()
+        try:
+            timeout = max(1, min(int(timeout_raw), 1440))
+        except ValueError:
+            timeout = 30
+        set_setting("session_timeout_minutes", str(timeout))
+
         flash("تنظیمات ذخیره شد.", "success")
         return redirect(url_for("settings.index"))
 
@@ -47,6 +65,9 @@ def index():
         currency=get_setting("currency", "تومان"),
         shop_name=get_setting("shop_name", "مغازه"),
         default_shop_percent=get_setting("default_shop_percent", ""),
+        auto_backup_enabled=get_setting("auto_backup_enabled", "1") == "1",
+        auto_backup_keep=get_setting("auto_backup_keep", "30"),
+        session_timeout_minutes=get_setting("session_timeout_minutes", "30"),
         users=users, backups=backups,
     )
 
@@ -137,6 +158,7 @@ def _list_backups():
             path = os.path.join(backup_dir, name)
             items.append({
                 "name": name,
+                "kind": "خودکار" if name.startswith("auto_backup") else "دستی",
                 "size": os.path.getsize(path),
                 "mtime": datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M"),
             })
@@ -146,21 +168,13 @@ def _list_backups():
 @bp.route("/backup", methods=("POST",))
 @login_required
 def backup_now():
-    """یک کپی امن از دیتابیس SQLite می‌سازد."""
-    import sqlite3
-    src = current_app.config["DATABASE"]
-    backup_dir = current_app.config["BACKUP_DIR"]
-    os.makedirs(backup_dir, exist_ok=True)
-    fname = "payroll_backup_%s.db" % datetime.now().strftime("%Y%m%d_%H%M%S")
-    dest = os.path.join(backup_dir, fname)
-    # استفاده از API بکاپ SQLite برای کپی سازگار حتی هنگام باز بودن دیتابیس
-    src_conn = sqlite3.connect(src)
-    dst_conn = sqlite3.connect(dest)
-    with dst_conn:
-        src_conn.backup(dst_conn)
-    src_conn.close()
-    dst_conn.close()
-    flash("بکاپ با موفقیت ساخته شد: %s" % fname, "success")
+    """یک کپی دستی و امن از دیتابیس SQLite می‌سازد."""
+    from ..db import create_backup
+    dest = create_backup(prefix="payroll_backup")
+    if dest:
+        flash("بکاپ با موفقیت ساخته شد: %s" % os.path.basename(dest), "success")
+    else:
+        flash("ساخت بکاپ ناموفق بود.", "error")
     return redirect(url_for("settings.index"))
 
 

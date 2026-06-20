@@ -32,6 +32,10 @@
         <label for="note">توضیحات</label>
         <textarea id="note" name="note">{{ worker['note'] if worker else '' }}</textarea>
       </div>
+      <div class="field full">
+        <label for="internal_note">یادداشت داخلی <span class="hint">(در چاپ عمومی قابل مخفی‌کردن است)</span></label>
+        <textarea id="internal_note" name="internal_note">{{ worker['internal_note'] if worker else '' }}</textarea>
+      </div>
     </div>
     <hr>
     <div class="btn-bar">

@@ -27,6 +27,24 @@
     });
   });
 
+  // --- هشدار پرداخت بیشتر از مانده طلب نیرو ---
+  document.querySelectorAll("form.payment-form[data-balance]").forEach(function (form) {
+    form.addEventListener("submit", function (e) {
+      var balance = parseInt(form.getAttribute("data-balance") || "0", 10);
+      var amountInp = form.querySelector("input[name=amount]");
+      var confirmInp = form.querySelector("input[name=confirm_overpay]");
+      var amount = parseInt((amountInp && amountInp.value || "").replace(/[^0-9]/g, "") || "0", 10);
+      if (amount > balance) {
+        var ok = window.confirm(
+          "مبلغ پرداخت بیشتر از مانده طلب نیرو است (" + balance.toLocaleString() +
+          " تومان). آیا مطمئن هستید؟"
+        );
+        if (!ok) { e.preventDefault(); return; }
+        if (confirmInp) confirmInp.value = "1";
+      }
+    });
+  });
+
   // --- جداکننده هزارگان زنده برای ورودی مبلغ ---
   function digits(s) { return (s || "").replace(/[^0-9]/g, ""); }
   function group(s) { return s.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }

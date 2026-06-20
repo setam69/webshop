@@ -107,6 +107,7 @@ def test_full_flow(client):
     # ثبت پروژه با دو نیرو ۳۰٪
     resp = client.post("/projects/new", data={
         "name": "نصب پروژه ۱", "labor_amount": "10,000,000",
+        "customer_total": "12,000,000",
         "project_date": "1403/03/29", "status": "done",
         "worker_id": ["1", "2"], "percent_1": "30", "percent_2": "30",
     }, follow_redirects=True)
@@ -131,12 +132,85 @@ def test_full_flow(client):
     resp = client.get("/settlement/1")
     assert to_persian_digits("2,000,000").encode() in resp.data
 
-    # گزارش‌ها و خروجی اکسل
-    assert client.get("/reports/?type=projects").status_code == 200
-    xlsx = client.get("/reports/export.xlsx?type=worker_debt")
+    # هزینه جانبی: ۵۰۰٬۰۰۰ → مانده واقعی مغازه = ۴٬۰۰۰٬۰۰۰ − ۵۰۰٬۰۰۰ = ۳٬۵۰۰٬۰۰۰
+    client.post("/expenses/new", data={
+        "project_id": "1", "category": "fuel", "amount": "500000",
+        "expense_date": "1403/03/30",
+    }, follow_redirects=True)
+    resp = client.get("/projects/1")
+    assert to_persian_digits("3,500,000").encode() in resp.data
+
+    # دریافت از مشتری: ۵٬۰۰۰٬۰۰۰ از ۱۲٬۰۰۰٬۰۰۰ → مانده ۷٬۰۰۰٬۰۰۰ و وضعیت «دریافت ناقص»
+    client.post("/customer-payments/new", data={
+        "project_id": "1", "amount": "5000000", "method": "cash",
+        "receive_date": "1403/03/30",
+    }, follow_redirects=True)
+    resp = client.get("/projects/1")
+    assert to_persian_digits("7,000,000").encode() in resp.data
+    assert "دریافت ناقص".encode() in resp.data
+
+    # پرداخت بیشتر از مانده طلب بدون تأیید باید رد شود (مانده ۳م، تلاش ۹۹م)
+    resp = client.post("/payments/new", data={
+        "worker_id": "1", "project_id": "1", "amount": "99000000",
+        "back": "/settlement/1",
+    }, follow_redirects=True)
+    assert "بیشتر از مانده طلب".encode() in resp.data
+    # با تأیید باید ثبت شود
+    client.post("/payments/new", data={
+        "worker_id": "1", "project_id": "1", "amount": "99000000",
+        "confirm_overpay": "1", "back": "/settlement/1",
+    }, follow_redirects=True)
+
+    # ثبت پرداخت عادی به نیرو ۱
+    client.post("/payments/new", data={
+        "worker_id": "2", "project_id": "1", "amount": "1000000",
+        "method": "card", "payment_date": "1403/03/30", "back": "/settlement/2",
+    }, follow_redirects=True)
+
+    # چاپ پروژه باید کار کند
+    assert client.get("/projects/1/print").status_code == 200
+
+    # همه نوع گزارش‌ها و خروجی اکسل
+    for rtype in ("projects", "shop_income", "shop_profit", "workers_share",
+                  "worker_debt", "worker_performance", "customer_unpaid", "unsettled"):
+        assert client.get("/reports/?type=%s" % rtype).status_code == 200
+    xlsx = client.get("/reports/export.xlsx?type=customer_unpaid")
     assert xlsx.status_code == 200
     assert xlsx.headers["Content-Type"].startswith("application/vnd.openxml")
 
     # داشبورد
     resp = client.get("/")
     assert resp.status_code == 200
+
+
+def test_migration_preserves_old_db(tmp_path):
+    """مهاجرت روی دیتابیس قدیمی نباید داده‌ها را پاک کند و باید ستون‌ها را اضافه کند."""
+    import sqlite3
+    path = str(tmp_path / "old.db")
+    con = sqlite3.connect(path)
+    con.executescript(
+        "CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT,"
+        " full_name TEXT, role TEXT, is_active INTEGER, created_at TEXT);"
+        "CREATE TABLE workers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, default_percent REAL,"
+        " is_active INTEGER, note TEXT, created_at TEXT);"
+        "CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT, customer_name TEXT, project_date TEXT,"
+        " project_date_jalali TEXT, address TEXT, labor_amount INTEGER, note TEXT, status TEXT, created_at TEXT);"
+        "CREATE TABLE project_workers(id INTEGER PRIMARY KEY, project_id INTEGER, worker_id INTEGER, percent REAL, share_amount INTEGER);"
+        "CREATE TABLE payments(id INTEGER PRIMARY KEY, worker_id INTEGER, project_id INTEGER, amount INTEGER,"
+        " payment_date TEXT, payment_date_jalali TEXT, note TEXT, created_at TEXT);"
+        "CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT);"
+        "INSERT INTO projects(id,name,labor_amount,status,created_at) VALUES (1,'قدیمی',8000000,'done','2025');"
+    )
+    con.commit(); con.close()
+
+    app = create_app({"DATABASE": path, "TESTING": True})
+    with app.app_context():
+        from payroll.db import get_db
+        db = get_db()
+        pcols = {r["name"] for r in db.execute("PRAGMA table_info(projects)")}
+        assert {"customer_total", "internal_note"} <= pcols
+        tables = {r["name"] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert {"expenses", "customer_payments"} <= tables
+        row = db.execute("SELECT name, labor_amount, customer_total FROM projects WHERE id=1").fetchone()
+        assert row["name"] == "قدیمی" and row["labor_amount"] == 8000000
+        assert row["customer_total"] == 8000000  # backfill

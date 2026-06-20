@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS workers (
     default_percent REAL    NOT NULL DEFAULT 0,
     is_active       INTEGER NOT NULL DEFAULT 1,
     note            TEXT,
+    internal_note   TEXT,                  -- یادداشت داخلی نیرو
     created_at      TEXT    NOT NULL
 );
 
@@ -34,7 +35,9 @@ CREATE TABLE IF NOT EXISTS projects (
     project_date_jalali TEXT,                  -- تاریخ شمسی برای نمایش
     address             TEXT,
     labor_amount        INTEGER NOT NULL DEFAULT 0,
+    customer_total      INTEGER NOT NULL DEFAULT 0,  -- مبلغ کل قابل دریافت از مشتری
     note                TEXT,
+    internal_note       TEXT,                  -- یادداشت داخلی (قابل مخفی‌کردن در چاپ)
     status              TEXT    NOT NULL DEFAULT 'not_started',
     created_at          TEXT    NOT NULL
 );
@@ -57,12 +60,39 @@ CREATE TABLE IF NOT EXISTS payments (
     worker_id           INTEGER NOT NULL,
     project_id          INTEGER,               -- می‌تواند تهی باشد (تسویه کلی)
     amount              INTEGER NOT NULL,
+    method              TEXT,                  -- روش پرداخت: cash/card/transfer/check/other
     payment_date        TEXT,                  -- میلادی ISO
     payment_date_jalali TEXT,                  -- شمسی
     note                TEXT,
     created_at          TEXT    NOT NULL,
     FOREIGN KEY (worker_id)  REFERENCES workers  (id) ON DELETE CASCADE,
     FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
+);
+
+-- هزینه‌های جانبی هر پروژه ----------------------------------------------------
+CREATE TABLE IF NOT EXISTS expenses (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id          INTEGER NOT NULL,
+    category            TEXT    NOT NULL,      -- fuel/food/consumable/goods/transport/other
+    amount              INTEGER NOT NULL,
+    expense_date        TEXT,
+    expense_date_jalali TEXT,
+    note                TEXT,
+    created_at          TEXT    NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+);
+
+-- دریافت‌های پول از مشتری (چند مرحله‌ای) --------------------------------------
+CREATE TABLE IF NOT EXISTS customer_payments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id          INTEGER NOT NULL,
+    amount              INTEGER NOT NULL,
+    method              TEXT,
+    receive_date        TEXT,
+    receive_date_jalali TEXT,
+    note                TEXT,
+    created_at          TEXT    NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
 );
 
 -- تنظیمات کلیدی-مقداری -------------------------------------------------------
@@ -75,3 +105,5 @@ CREATE INDEX IF NOT EXISTS idx_pw_project ON project_workers (project_id);
 CREATE INDEX IF NOT EXISTS idx_pw_worker  ON project_workers (worker_id);
 CREATE INDEX IF NOT EXISTS idx_pay_worker ON payments (worker_id);
 CREATE INDEX IF NOT EXISTS idx_proj_date  ON projects (project_date);
+CREATE INDEX IF NOT EXISTS idx_exp_project ON expenses (project_id);
+CREATE INDEX IF NOT EXISTS idx_cp_project  ON customer_payments (project_id);

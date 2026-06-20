@@ -5,10 +5,11 @@
 
 <div class="page-actions">
   <a href="{{ url_for('projects.edit', project_id=project.id) }}" class="btn btn-primary">✏️ ویرایش پروژه</a>
-  <a href="{{ url_for('projects.index') }}" class="btn btn-outline">بازگشت به لیست</a>
+  <a href="{{ url_for('projects.print_view', project_id=project.id) }}" target="_blank" class="btn btn-outline">🖨 چاپ / PDF</a>
+  <a href="{{ url_for('projects.index') }}" class="btn btn-outline">بازگشت</a>
   <div class="spacer"></div>
   <form class="inline-form" method="post" action="{{ url_for('projects.delete', project_id=project.id) }}"
-        data-confirm="حذف پروژه «{{ project.name }}» و همه اطلاعات مرتبط (سهم‌ها و پرداخت‌ها) قابل بازگشت نیست. ادامه می‌دهید؟">
+        data-confirm="حذف پروژه «{{ project.name }}» و همه اطلاعات مرتبط (سهم‌ها، پرداخت‌ها، هزینه‌ها و دریافت‌ها) قابل بازگشت نیست. ادامه می‌دهید؟">
     <button type="submit" class="btn btn-danger">🗑 حذف پروژه</button>
   </form>
 </div>
@@ -23,25 +24,29 @@
       <tr><th style="background:none">مشتری / کارفرما</th><td>{{ project.customer_name or '—' }}</td></tr>
       <tr><th style="background:none">تاریخ</th><td class="num">{{ project.project_date_jalali | fa if project.project_date_jalali else '—' }}</td></tr>
       <tr><th style="background:none">آدرس</th><td style="white-space:normal">{{ project.address or '—' }}</td></tr>
-      <tr><th style="background:none">مبلغ کل دستمزد</th><td class="num"><b>{{ project.labor_amount | money_fa }}</b> {{ currency }}</td></tr>
-      <tr><th style="background:none">سهم نیروها</th><td class="num">{{ total_share | money_fa }} {{ currency }}</td></tr>
-      <tr><th style="background:none">سهم مغازه</th><td class="num text-green">{{ shop_share | money_fa }} {{ currency }}</td></tr>
       {% if project.note %}<tr><th style="background:none">توضیحات</th><td style="white-space:normal">{{ project.note }}</td></tr>{% endif %}
+      {% if project.internal_note %}<tr><th style="background:none">یادداشت داخلی</th><td style="white-space:normal;color:var(--amber)">📝 {{ project.internal_note }}</td></tr>{% endif %}
     </table>
+    <form method="post" action="{{ url_for('projects.set_status', project_id=project.id) }}" class="filters" style="margin-top:12px">
+      <select name="status">
+        {% for code in STATUS_ORDER %}
+        <option value="{{ code }}" {{ 'selected' if project.status == code }}>{{ STATUS_LABELS[code] }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-outline" type="submit">تغییر وضعیت</button>
+    </form>
   </div>
 
   <div class="card">
-    <div class="card-title"><h2>تغییر وضعیت</h2></div>
-    <form method="post" action="{{ url_for('projects.set_status', project_id=project.id) }}">
-      <div class="field">
-        <select name="status">
-          {% for code in STATUS_ORDER %}
-          <option value="{{ code }}" {{ 'selected' if project.status == code }}>{{ STATUS_LABELS[code] }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button class="btn btn-outline" type="submit">به‌روزرسانی وضعیت</button>
-    </form>
+    <div class="card-title"><h2>خلاصه مالی پروژه</h2></div>
+    <table>
+      <tr><th style="background:none">مبلغ کل دستمزد</th><td class="num"><b>{{ fin.labor_amount | money_fa }}</b> {{ currency }}</td></tr>
+      <tr><th style="background:none">مجموع سهم نیروها</th><td class="num">{{ fin.workers_share | money_fa }}</td></tr>
+      <tr><th style="background:none">مجموع هزینه‌های جانبی</th><td class="num text-red">{{ fin.expenses_total | money_fa }}</td></tr>
+      <tr><th style="background:none">سهم مغازه قبل از هزینه‌ها</th><td class="num">{{ fin.shop_before_expenses | money_fa }}</td></tr>
+      <tr><th style="background:none">مانده واقعی مغازه بعد از هزینه‌ها</th>
+        <td class="num {{ 'text-green' if fin.shop_after_expenses >= 0 else 'text-red' }}"><b>{{ fin.shop_after_expenses | money_fa }}</b> {{ currency }}</td></tr>
+    </table>
   </div>
 </div>
 
@@ -63,12 +68,17 @@
           <td class="num">{{ w.paid | money_fa }}</td>
           <td class="num {{ 'text-red' if w.balance > 0 else 'text-green' }}">{{ w.balance | money_fa }}</td>
           <td>
-            <form class="filters" method="post" action="{{ url_for('payments.create') }}">
+            <form class="filters payment-form" method="post" action="{{ url_for('payments.create') }}"
+                  data-balance="{{ w.balance }}">
               <input type="hidden" name="worker_id" value="{{ w.worker_id }}">
               <input type="hidden" name="project_id" value="{{ project.id }}">
               <input type="hidden" name="back" value="{{ url_for('projects.detail', project_id=project.id) }}">
-              <input type="text" class="money" name="amount" placeholder="مبلغ" style="max-width:130px"
+              <input type="hidden" name="confirm_overpay" value="0">
+              <input type="text" class="money" name="amount" placeholder="مبلغ" style="max-width:120px"
                      value="{{ w.balance if w.balance > 0 else '' }}">
+              <select name="method" style="max-width:120px">
+                {% for code in PAYMENT_METHOD_ORDER %}<option value="{{ code }}">{{ PAYMENT_METHODS[code] }}</option>{% endfor %}
+              </select>
               <button class="btn btn-sm btn-success" type="submit">ثبت</button>
             </form>
           </td>
@@ -77,28 +87,43 @@
       </tbody>
     </table>
   </div>
-  {% else %}
-  <div class="empty">هیچ نیرویی برای این پروژه ثبت نشده است.</div>
-  {% endif %}
+  {% else %}<div class="empty">هیچ نیرویی برای این پروژه ثبت نشده است.</div>{% endif %}
 </div>
 
 <div class="card">
-  <div class="card-title"><h2>پرداخت‌های این پروژه</h2></div>
-  {% if payments %}
+  <div class="card-title"><h2>وضعیت دریافت پول از مشتری</h2>
+    {% set ccls = {'not_received':'red','partial':'amber','received':'green'} %}
+    <span class="badge {{ ccls.get(fin.customer_status,'gray') }}">{{ fin.customer_status | cstatus }}</span>
+  </div>
+  <div class="stats-grid">
+    <div class="stat"><div class="label">مبلغ کل قابل دریافت</div><div class="value">{{ fin.customer_total | money_fa }} <span class="unit">{{ currency }}</span></div></div>
+    <div class="stat green"><div class="label">دریافت‌شده</div><div class="value">{{ fin.customer_received | money_fa }}</div></div>
+    <div class="stat red"><div class="label">مانده طلب از مشتری</div><div class="value">{{ fin.customer_balance | money_fa }}</div></div>
+  </div>
+  <form class="filters" method="post" action="{{ url_for('customer.create') }}">
+    <input type="hidden" name="project_id" value="{{ project.id }}">
+    <div class="field" style="margin:0"><label>مبلغ دریافتی</label><input type="text" class="money" name="amount" required style="max-width:140px"></div>
+    <div class="field" style="margin:0"><label>روش</label>
+      <select name="method">{% for code in PAYMENT_METHOD_ORDER %}<option value="{{ code }}">{{ PAYMENT_METHODS[code] }}</option>{% endfor %}</select>
+    </div>
+    <div class="field" style="margin:0"><label>تاریخ</label><input type="text" name="receive_date" value="{{ today }}" style="max-width:130px"></div>
+    <div class="field" style="margin:0"><label>توضیح</label><input type="text" name="note"></div>
+    <button class="btn btn-success" type="submit">ثبت دریافت</button>
+  </form>
+  {% if customer_payments %}
+  <hr>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>نیرو</th><th class="num">مبلغ</th><th>تاریخ</th><th>توضیح</th><th></th></tr></thead>
+      <thead><tr><th class="num">مبلغ</th><th>روش</th><th>تاریخ</th><th>توضیح</th><th></th></tr></thead>
       <tbody>
-        {% for p in payments %}
+        {% for c in customer_payments %}
         <tr>
-          <td>{{ p.worker_name }}</td>
-          <td class="num">{{ p.amount | money_fa }}</td>
-          <td class="num">{{ p.payment_date_jalali | fa if p.payment_date_jalali else '—' }}</td>
-          <td style="white-space:normal">{{ p.note or '—' }}</td>
+          <td class="num">{{ c.amount | money_fa }}</td>
+          <td>{{ c.method | method }}</td>
+          <td class="num">{{ c.receive_date_jalali | fa if c.receive_date_jalali else '—' }}</td>
+          <td style="white-space:normal">{{ c.note or '—' }}</td>
           <td>
-            <form class="inline-form" method="post" action="{{ url_for('payments.delete', payment_id=p.id) }}"
-                  data-confirm="حذف این پرداخت؟">
-              <input type="hidden" name="back" value="{{ url_for('projects.detail', project_id=project.id) }}">
+            <form class="inline-form" method="post" action="{{ url_for('customer.delete', cp_id=c.id) }}" data-confirm="حذف این دریافت؟">
               <button class="btn btn-sm btn-danger" type="submit">حذف</button>
             </form>
           </td>
@@ -107,9 +132,77 @@
       </tbody>
     </table>
   </div>
-  {% else %}
-  <div class="empty">هنوز پرداختی برای این پروژه ثبت نشده است.</div>
   {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title"><h2>هزینه‌های جانبی پروژه</h2>
+    <span class="text-muted">مجموع: {{ fin.expenses_total | money_fa }} {{ currency }}</span>
+  </div>
+  <form class="filters" method="post" action="{{ url_for('expenses.create') }}">
+    <input type="hidden" name="project_id" value="{{ project.id }}">
+    <div class="field" style="margin:0"><label>دسته</label>
+      <select name="category">{% for code in EXPENSE_CATEGORY_ORDER %}<option value="{{ code }}">{{ EXPENSE_CATEGORIES[code] }}</option>{% endfor %}</select>
+    </div>
+    <div class="field" style="margin:0"><label>مبلغ</label><input type="text" class="money" name="amount" required style="max-width:140px"></div>
+    <div class="field" style="margin:0"><label>تاریخ</label><input type="text" name="expense_date" value="{{ today }}" style="max-width:130px"></div>
+    <div class="field" style="margin:0"><label>توضیح</label><input type="text" name="note"></div>
+    <button class="btn btn-outline" type="submit">➕ ثبت هزینه</button>
+  </form>
+  {% if expenses %}
+  <hr>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>دسته</th><th class="num">مبلغ</th><th>تاریخ</th><th>توضیح</th><th></th></tr></thead>
+      <tbody>
+        {% for e in expenses %}
+        <tr>
+          <td><span class="badge gray">{{ e.category | expense }}</span></td>
+          <td class="num">{{ e.amount | money_fa }}</td>
+          <td class="num">{{ e.expense_date_jalali | fa if e.expense_date_jalali else '—' }}</td>
+          <td style="white-space:normal">{{ e.note or '—' }}</td>
+          <td>
+            <form class="inline-form" method="post" action="{{ url_for('expenses.delete', expense_id=e.id) }}" data-confirm="حذف این هزینه؟">
+              <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title"><h2>پرداخت‌های انجام‌شده به نیروها</h2></div>
+  {% if payments %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>نیرو</th><th class="num">مبلغ</th><th>روش</th><th>تاریخ</th><th>توضیح</th><th></th></tr></thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td>{{ p.worker_name }}</td>
+          <td class="num">{{ p.amount | money_fa }}</td>
+          <td>{{ p.method | method }}</td>
+          <td class="num">{{ p.payment_date_jalali | fa if p.payment_date_jalali else '—' }}</td>
+          <td style="white-space:normal">{{ p.note or '—' }}</td>
+          <td>
+            <div class="btn-bar">
+              <a class="btn btn-sm btn-outline" href="{{ url_for('payments.edit', payment_id=p.id, back=url_for('projects.detail', project_id=project.id)) }}">ویرایش</a>
+              <form class="inline-form" method="post" action="{{ url_for('payments.delete', payment_id=p.id) }}" data-confirm="حذف این پرداخت؟">
+                <input type="hidden" name="back" value="{{ url_for('projects.detail', project_id=project.id) }}">
+                <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty">هنوز پرداختی برای این پروژه ثبت نشده است.</div>{% endif %}
 </div>
 
 {% endblock %}

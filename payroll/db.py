@@ -37,6 +37,50 @@ def init_db():
     _seed_defaults(db)
 
 
+def _table_columns(db, table):
+    return {r["name"] for r in db.execute("PRAGMA table_info(%s)" % table).fetchall()}
+
+
+def migrate():
+    """مهاجرت امن و افزایشی ساختار دیتابیس بدون آسیب به داده‌های قبلی.
+
+    همه گام‌ها idempotent هستند (افزودن ستون فقط در صورت نبود، و جداول با
+    ``IF NOT EXISTS``)، بنابراین اجرای مکرر آن بی‌خطر است. ستون‌های جدید روی
+    دیتابیس‌های قدیمی با ``ALTER TABLE`` اضافه می‌شوند و داده‌ها دست‌نخورده می‌مانند.
+    """
+    db = get_db()
+    changed = False
+
+    additions = {
+        "projects": [
+            ("customer_total", "INTEGER NOT NULL DEFAULT 0"),
+            ("internal_note", "TEXT"),
+        ],
+        "workers": [
+            ("internal_note", "TEXT"),
+        ],
+        "payments": [
+            ("method", "TEXT"),
+        ],
+    }
+    for table, cols in additions.items():
+        existing = _table_columns(db, table)
+        for col, decl in cols:
+            if col not in existing:
+                db.execute("ALTER TABLE %s ADD COLUMN %s %s" % (table, col, decl))
+                changed = True
+
+    # برای پروژه‌های قدیمی که هنوز مبلغ قابل دریافت از مشتری ندارند،
+    # آن را برابر مبلغ دستمزد قرار بده تا گزارش‌ها معنادار بمانند.
+    if changed:
+        db.execute(
+            "UPDATE projects SET customer_total = labor_amount"
+            " WHERE customer_total = 0 AND labor_amount > 0"
+        )
+    db.commit()
+    return changed
+
+
 def _seed_defaults(db):
     now = datetime.now().isoformat(timespec="seconds")
 
@@ -45,6 +89,9 @@ def _seed_defaults(db):
         "currency": "تومان",
         "shop_name": "مغازه",
         "default_shop_percent": "",  # خالی = خودکار از باقی‌مانده
+        "auto_backup_enabled": "1",
+        "auto_backup_keep": "30",
+        "session_timeout_minutes": "30",
     }
     for key, value in defaults.items():
         db.execute(
@@ -63,6 +110,59 @@ def _seed_defaults(db):
             (username, generate_password_hash(password), "مدیر سیستم", now),
         )
     db.commit()
+
+
+def create_backup(prefix="payroll_backup"):
+    """یک کپی سالم از دیتابیس SQLite در پوشه backups می‌سازد و مسیر آن را برمی‌گرداند."""
+    src = current_app.config["DATABASE"]
+    backup_dir = current_app.config["BACKUP_DIR"]
+    os.makedirs(backup_dir, exist_ok=True)
+    if not os.path.exists(src):
+        return None
+    fname = "%s_%s.db" % (prefix, datetime.now().strftime("%Y%m%d_%H%M%S"))
+    dest = os.path.join(backup_dir, fname)
+    if os.path.exists(dest):  # جلوگیری از بازنویسی در همان ثانیه
+        return dest
+    # استفاده از API رسمی بکاپ SQLite برای کپی یکپارچه حتی هنگام باز بودن دیتابیس
+    src_conn = sqlite3.connect(src)
+    dst_conn = sqlite3.connect(dest)
+    try:
+        with dst_conn:
+            src_conn.backup(dst_conn)
+    finally:
+        src_conn.close()
+        dst_conn.close()
+    return dest
+
+
+def prune_backups(prefix, keep):
+    """فقط ``keep`` بکاپ آخر با پیشوند مشخص را نگه می‌دارد و بقیه را حذف می‌کند."""
+    backup_dir = current_app.config["BACKUP_DIR"]
+    if not os.path.isdir(backup_dir) or keep <= 0:
+        return
+    files = sorted(
+        (f for f in os.listdir(backup_dir)
+         if f.startswith(prefix) and f.endswith(".db")),
+        reverse=True,
+    )
+    for stale in files[keep:]:
+        try:
+            os.remove(os.path.join(backup_dir, stale))
+        except OSError:
+            pass
+
+
+def auto_backup():
+    """بکاپ خودکار هنگام راه‌اندازی برنامه (پیش از هر تغییر ساختار دیتابیس)."""
+    try:
+        keep = int(get_setting("auto_backup_keep", "30") or "30")
+    except (ValueError, TypeError):
+        keep = 30
+    if get_setting("auto_backup_enabled", "1") == "0":
+        return None
+    path = create_backup(prefix="auto_backup")
+    prune_backups("auto_backup", keep)
+    return path
 
 
 def get_setting(key, default=None):
@@ -91,6 +191,15 @@ def init_db_command():
     click.echo("دیتابیس راه‌اندازی شد.")
 
 
+@click.command("migrate")
+def migrate_command():
+    """دستور خط فرمان: بکاپ خودکار و مهاجرت امن ساختار دیتابیس."""
+    auto_backup()
+    changed = migrate()
+    click.echo("مهاجرت انجام شد." if changed else "ساختار دیتابیس از قبل به‌روز است.")
+
+
 def init_app(app):
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
+    app.cli.add_command(migrate_command)

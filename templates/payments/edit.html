@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}ویرایش پرداخت{% endblock %}
+{% block heading %}ویرایش پرداخت — {{ payment.worker_name }}{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:620px">
+  <form method="post" action="{{ url_for('payments.edit', payment_id=payment.id, back=back) }}">
+    {% if overpay %}<input type="hidden" name="confirm_overpay" value="1">{% endif %}
+    <div class="form-grid">
+      <div class="field">
+        <label for="amount">مبلغ ({{ currency }})</label>
+        <input type="text" id="amount" class="money" name="amount" inputmode="numeric"
+               required value="{{ payment.amount | money }}">
+      </div>
+      <div class="field">
+        <label for="method">روش پرداخت</label>
+        <select id="method" name="method">
+          {% for code in PAYMENT_METHOD_ORDER %}
+          <option value="{{ code }}" {{ 'selected' if payment.method == code }}>{{ PAYMENT_METHODS[code] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="payment_date">تاریخ (شمسی)</label>
+        <input type="text" id="payment_date" name="payment_date"
+               value="{{ payment.payment_date_jalali or '' }}">
+      </div>
+      <div class="field full">
+        <label for="note">توضیح</label>
+        <input type="text" id="note" name="note" value="{{ payment.note or '' }}">
+      </div>
+    </div>
+    {% if overpay %}
+    <div class="flash error">این مبلغ بیشتر از مانده طلب است. با ثبت مجدد، پرداخت اضافه تأیید می‌شود.</div>
+    {% endif %}
+    <hr>
+    <div class="btn-bar">
+      <button type="submit" class="btn btn-primary">💾 ذخیره تغییرات</button>
+      <a href="{{ back }}" class="btn btn-outline">انصراف</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

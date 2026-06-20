@@ -17,8 +17,11 @@ bp = Blueprint("reports", __name__, url_prefix="/reports")
 REPORT_TYPES = {
     "projects": "گزارش پروژه‌ها",
     "shop_income": "درآمد مغازه",
+    "shop_profit": "سود واقعی مغازه (بعد از هزینه‌ها)",
     "workers_share": "سهم نیروها",
     "worker_debt": "بدهی به نیروها",
+    "worker_performance": "عملکرد نیروها",
+    "customer_unpaid": "طلب از مشتری‌ها (تسویه‌نشده)",
     "unsettled": "پروژه‌های تسویه‌نشده",
 }
 
@@ -117,7 +120,79 @@ def _build_report(rtype, from_iso, to_iso):
         summary = [("مجموع بدهی به نیروها", total_debt)]
         return headers, data, summary, [1, 2, 3]
 
-    # unsettled
+    if rtype == "shop_profit":
+        # سود واقعی مغازه = دستمزد − سهم نیروها − هزینه‌های جانبی (در بازه تاریخ پروژه)
+        where, params = date_clause()
+        labor = db.execute(
+            "SELECT COALESCE(SUM(labor_amount),0) AS s FROM projects p" + where, params
+        ).fetchone()["s"]
+        where2, params2 = date_clause("p.project_date")
+        ws = db.execute(
+            "SELECT COALESCE(SUM(pw.share_amount),0) AS s FROM project_workers pw"
+            " JOIN projects p ON p.id = pw.project_id" + where2, params2
+        ).fetchone()["s"]
+        exp = db.execute(
+            "SELECT COALESCE(SUM(e.amount),0) AS s FROM expenses e"
+            " JOIN projects p ON p.id = e.project_id" + where2, params2
+        ).fetchone()["s"]
+        headers = ["شرح", "مبلغ"]
+        data = [["مجموع دستمزد پروژه‌ها", labor],
+                ["مجموع سهم نیروها", ws],
+                ["سهم مغازه قبل از هزینه‌ها", labor - ws],
+                ["مجموع هزینه‌های جانبی", exp],
+                ["سود/مانده واقعی مغازه", labor - ws - exp]]
+        summary = [("سود واقعی مغازه در بازه", labor - ws - exp)]
+        return headers, data, summary, [1]
+
+    if rtype == "worker_performance":
+        # عملکرد هر نیرو در بازه: تعداد پروژه، مجموع سهم، پرداخت و مانده
+        where, params = date_clause("p.project_date")
+        rows = db.execute(
+            "SELECT w.id, w.name, COUNT(pw.id) AS cnt, "
+            " COALESCE(SUM(pw.share_amount),0) AS share "
+            "FROM project_workers pw JOIN projects p ON p.id = pw.project_id "
+            "JOIN workers w ON w.id = pw.worker_id" + where +
+            " GROUP BY w.id ORDER BY share DESC",
+            params,
+        ).fetchall()
+        headers = ["نیرو", "تعداد پروژه", "مجموع سهم", "پرداخت‌شده (کل)", "مانده طلب (کل)"]
+        data = []
+        for r in rows:
+            paid = db.execute(
+                "SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE worker_id=?",
+                (r["id"],),
+            ).fetchone()["s"]
+            total_share = db.execute(
+                "SELECT COALESCE(SUM(share_amount),0) AS s FROM project_workers WHERE worker_id=?",
+                (r["id"],),
+            ).fetchone()["s"]
+            data.append([r["name"], r["cnt"], r["share"], paid, total_share - paid])
+        summary = [("مجموع سهم در بازه", sum(r["share"] for r in rows))]
+        return headers, data, summary, [2, 3, 4]
+
+    if rtype == "customer_unpaid":
+        # پروژه‌هایی که مشتری هنوز کامل پرداخت نکرده
+        rows = db.execute(
+            "SELECT p.*, "
+            " (SELECT COALESCE(SUM(amount),0) FROM customer_payments WHERE project_id=p.id) AS received "
+            "FROM projects p ORDER BY p.id DESC"
+        ).fetchall()
+        headers = ["نام پروژه", "مشتری", "تاریخ", "کل قابل دریافت", "دریافت‌شده", "مانده طلب مشتری"]
+        data = []
+        total_recv = 0
+        for r in rows:
+            bal = (r["customer_total"] or 0) - r["received"]
+            if bal <= 0:
+                continue
+            total_recv += bal
+            data.append([
+                r["name"], r["customer_name"] or "-", r["project_date_jalali"] or "-",
+                r["customer_total"], r["received"], bal,
+            ])
+        summary = [("تعداد پروژه", len(data)), ("مجموع طلب از مشتری‌ها", total_recv)]
+        return headers, data, summary, [3, 4, 5]
+
+    # unsettled (پیش‌فرض)
     rows = db.execute(
         "SELECT p.*, "
         " (SELECT COALESCE(SUM(share_amount),0) FROM project_workers WHERE project_id=p.id) AS workers_share, "
@@ -126,7 +201,6 @@ def _build_report(rtype, from_iso, to_iso):
     ).fetchall()
     headers = ["نام پروژه", "مشتری", "تاریخ", "مبلغ کل", "سهم نیروها", "پرداخت‌شده", "مانده"]
     data = []
-    from ..utils import status_label  # noqa
     for r in rows:
         data.append([
             r["name"], r["customer_name"] or "-", r["project_date_jalali"] or "-",

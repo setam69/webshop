@@ -1,11 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""تنظیمات ساخت فایل اجرایی با PyInstaller (حالت onedir).
+"""تنظیمات ساخت فایل اجرایی با PyInstaller (حالت onedir، اپلیکیشن پنجره‌ای ویندوز).
 
 اجرا روی ویندوز:
     pyinstaller --noconfirm PersianPayroll.spec
 خروجی:
     dist/PersianPayroll/PersianPayroll.exe  (به همراه پوشه _internal)
+
+نقطه‌ورود ``desktop.py`` است: Flask در پس‌زمینه + پنجره native با pywebview.
+مرورگر سیستم باز نمی‌شود.
 """
+
+# ---------------------------------------------------------------------------
+# پنجره کنسول (پنجره مشکی):
+#   True  = برای اولین تست روی ویندوز، تا اگر خطایی بود دیده شود.
+#   False = حالت نهایی؛ هیچ پنجره مشکی باز نمی‌شود (تجربه اپ ویندوزی).
+# پس از اطمینان از اجرای درست، این مقدار را به False تغییر دهید.
+# (خطاها در هر حالت در فایل desktop_error.log کنار برنامه هم ثبت می‌شوند.)
+CONSOLE = True
+# ---------------------------------------------------------------------------
 
 # منابع فقط‌خواندنی که باید داخل بسته قرار بگیرند
 datas = [
@@ -16,6 +28,7 @@ datas = [
 
 # ماژول‌هایی که ممکن است به‌صورت پویا بارگذاری شوند و تحلیل ایستا آن‌ها را نبیند
 hiddenimports = [
+    "webview",
     "openpyxl.cell._writer",
     "payroll.blueprints.dashboard",
     "payroll.blueprints.workers",
@@ -30,7 +43,7 @@ hiddenimports = [
 ]
 
 a = Analysis(
-    ["run.py"],
+    ["desktop.py"],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -55,7 +68,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,          # پنجره برای نمایش خطاها فعلاً باز می‌ماند
+    console=CONSOLE,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

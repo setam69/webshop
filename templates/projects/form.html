@@ -56,26 +56,40 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><h2>نیروهای نصب و درصد سهم</h2></div>
-    <p class="hint">نیروهای موردنظر را انتخاب کنید و درصد هرکدام را برای همین پروژه وارد کنید. سهم به صورت زنده محاسبه می‌شود.</p>
+    <div class="card-title"><h2>نیروهای نصب و سهم هرکدام</h2></div>
+    <p class="hint">نیروهای موردنظر را انتخاب کنید و برای هرکدام یا «درصد» یا «مبلغ ثابت» را وارد کنید. سهم به صورت زنده محاسبه می‌شود.</p>
     {% if workers %}
     <div class="table-wrap">
       <table id="worker-rows">
         <thead>
-          <tr><th>انتخاب</th><th>نیرو</th><th class="num">درصد (٪)</th><th class="num">سهم ({{ currency }})</th></tr>
+          <tr><th>انتخاب</th><th>نیرو</th><th>حالت</th><th class="num">درصد / مبلغ</th><th class="num">سهم ({{ currency }})</th></tr>
         </thead>
         <tbody>
           {% for w in workers %}
-          {% set is_sel = w.id in selected %}
+          {% set sel = selected.get(w.id) %}
+          {% set is_sel = sel is not none %}
+          {% set w_mode = sel.mode if is_sel else 'percent' %}
           <tr class="worker-row">
             <td>
               <input type="checkbox" name="worker_id" value="{{ w.id }}" style="width:auto"
                      {{ 'checked' if is_sel }}>
             </td>
             <td>{{ w.name }}{% if not w.is_active %} <span class="badge gray">غیرفعال</span>{% endif %}</td>
+            <td>
+              <select class="worker-mode" name="mode_{{ w.id }}" style="max-width:130px">
+                <option value="percent" {{ 'selected' if w_mode == 'percent' }}>درصد</option>
+                <option value="fixed" {{ 'selected' if w_mode == 'fixed' }}>مبلغ ثابت</option>
+              </select>
+            </td>
             <td class="num">
-              <input type="text" class="percent" name="percent_{{ w.id }}" inputmode="decimal" style="max-width:110px"
-                     value="{{ (selected[w.id] if is_sel else w.default_percent) | percent }}">
+              <span class="percent-wrap">
+                <input type="text" class="percent" name="percent_{{ w.id }}" inputmode="decimal" style="max-width:100px"
+                       value="{{ (sel.percent if is_sel else w.default_percent) | percent }}">٪
+              </span>
+              <span class="amount-wrap" style="display:none">
+                <input type="text" class="money worker-amount" name="amount_{{ w.id }}" inputmode="numeric" style="max-width:130px"
+                       value="{{ (sel.amount | money) if is_sel and sel.amount else '' }}">
+              </span>
             </td>
             <td class="num share-cell">—</td>
           </tr>
@@ -83,12 +97,11 @@
         </tbody>
         <tfoot>
           <tr style="font-weight:700">
-            <td></td><td>جمع</td>
-            <td class="num"><span id="sum-percent">0</span>٪</td>
+            <td></td><td colspan="3">جمع سهم نیروها</td>
             <td class="num"><span id="sum-share">0</span></td>
           </tr>
           <tr style="font-weight:700;color:var(--green)">
-            <td></td><td>سهم مغازه</td><td></td>
+            <td></td><td colspan="3">سهم مغازه</td>
             <td class="num"><span id="shop-share">0</span></td>
           </tr>
         </tfoot>

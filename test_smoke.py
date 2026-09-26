@@ -312,3 +312,97 @@ def test_restore_populated_over_empty(tmp_path):
         # بکاپ pre_restore باید ساخته شده باشد
         names = os.listdir(bdir)
         assert any(n.startswith("pre_restore") for n in names)
+
+
+# --- سهم نیرو با مبلغ ثابت (به‌جای درصد) -------------------------------------
+def test_worker_utils_fixed_mode():
+    from payroll.utils import equivalent_percent, parse_worker_mode
+    assert parse_worker_mode("fixed") == "fixed"
+    assert parse_worker_mode("percent") == "percent"
+    assert parse_worker_mode("") == "percent"           # نامعتبر → پیش‌فرض امن
+    assert parse_worker_mode("garbage") == "percent"
+    assert equivalent_percent(3_000_000, 10_000_000) == 30.0
+    assert equivalent_percent(1, 0) == 0.0               # تقسیم بر صفر بدون کرش
+
+
+def test_project_mixed_percent_and_fixed_share(client):
+    """یک نیرو با درصد، یک نیرو با مبلغ ثابت؛ سهم مغازه از باقی‌مانده محاسبه شود."""
+    login(client)
+    client.post("/workers/new", data={"name": "علی", "default_percent": "30", "is_active": "1"},
+               follow_redirects=True)
+    client.post("/workers/new", data={"name": "رضا", "default_percent": "0", "is_active": "1"},
+               follow_redirects=True)
+
+    # پروژه ۱۰,۰۰۰,۰۰۰: علی ۳۰٪ (=۳,۰۰۰,۰۰۰) + رضا مبلغ ثابت ۲,۰۰۰,۰۰۰ → مغازه ۵,۰۰۰,۰۰۰
+    resp = client.post("/projects/new", data={
+        "name": "پروژه ترکیبی", "labor_amount": "10,000,000",
+        "worker_id": ["1", "2"],
+        "mode_1": "percent", "percent_1": "30",
+        "mode_2": "fixed", "amount_2": "2,000,000",
+    }, follow_redirects=True)
+    assert to_persian_digits("3,000,000").encode() in resp.data   # سهم علی
+    assert to_persian_digits("2,000,000").encode() in resp.data   # سهم رضا
+    assert to_persian_digits("5,000,000").encode() in resp.data   # سهم مغازه
+
+    app = client.application
+    with app.app_context():
+        from payroll.db import get_db
+        rows = get_db().execute(
+            "SELECT worker_id, mode, share_amount FROM project_workers ORDER BY worker_id"
+        ).fetchall()
+        assert rows[0]["mode"] == "percent" and rows[0]["share_amount"] == 3_000_000
+        assert rows[1]["mode"] == "fixed" and rows[1]["share_amount"] == 2_000_000
+
+
+def test_project_fixed_amount_exceeding_labor_rejected(client):
+    """جمع سهم‌ها (ترکیب درصد/مبلغ ثابت) نباید از مبلغ کل پروژه بیشتر شود."""
+    login(client)
+    client.post("/workers/new", data={"name": "علی", "default_percent": "0", "is_active": "1"},
+               follow_redirects=True)
+
+    resp = client.post("/projects/new", data={
+        "name": "پروژه خطای مبلغ", "labor_amount": "1,000,000",
+        "worker_id": ["1"], "mode_1": "fixed", "amount_1": "5,000,000",
+    }, follow_redirects=True)
+    assert "بیشتر است" in resp.get_data(as_text=True)
+    app = client.application
+    with app.app_context():
+        from payroll.db import get_db
+        count = get_db().execute(
+            "SELECT COUNT(*) c FROM projects WHERE name = 'پروژه خطای مبلغ'"
+        ).fetchone()["c"]
+        assert count == 0   # چیزی ثبت نشده باشد
+
+
+def test_project_workers_mode_migration_from_old_schema(tmp_path):
+    """دیتابیس قدیمی project_workers بدون ستون mode باید بی‌خطر و بدون حذف داده مهاجرت کند."""
+    import sqlite3
+    path = str(tmp_path / "old.db")
+    con = sqlite3.connect(path)
+    con.executescript(
+        "CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT,"
+        " full_name TEXT, role TEXT, is_active INTEGER, created_at TEXT);"
+        "CREATE TABLE workers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, default_percent REAL,"
+        " is_active INTEGER, note TEXT, created_at TEXT);"
+        "CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT, customer_name TEXT, project_date TEXT,"
+        " project_date_jalali TEXT, address TEXT, labor_amount INTEGER, note TEXT, status TEXT, created_at TEXT);"
+        "CREATE TABLE project_workers(id INTEGER PRIMARY KEY, project_id INTEGER, worker_id INTEGER,"
+        " percent REAL, share_amount INTEGER);"
+        "CREATE TABLE payments(id INTEGER PRIMARY KEY, worker_id INTEGER, project_id INTEGER, amount INTEGER,"
+        " payment_date TEXT, payment_date_jalali TEXT, note TEXT, created_at TEXT);"
+        "CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT);"
+        "INSERT INTO workers(id,name,default_percent,is_active,created_at) VALUES (1,'قدیمی',30,1,'2025');"
+        "INSERT INTO projects(id,name,labor_amount,status,created_at) VALUES (1,'پروژه قدیمی',8000000,'done','2025');"
+        "INSERT INTO project_workers(project_id,worker_id,percent,share_amount) VALUES (1,1,30,2400000);"
+    )
+    con.commit(); con.close()
+
+    app = create_app({"DATABASE": path, "TESTING": True, "BACKUP_DIR": str(tmp_path / "backups")})
+    with app.app_context():
+        from payroll.db import get_db
+        db = get_db()
+        cols = {r["name"] for r in db.execute("PRAGMA table_info(project_workers)")}
+        assert "mode" in cols
+        row = db.execute("SELECT mode, percent, share_amount FROM project_workers WHERE project_id=1").fetchone()
+        assert row["mode"] == "percent"          # پیش‌فرض امن برای رکوردهای قدیمی
+        assert row["share_amount"] == 2400000    # داده قبلی دست‌نخورده

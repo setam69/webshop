@@ -65,13 +65,14 @@
   {% if projects %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>پروژه</th><th>تاریخ</th><th class="num">درصد</th><th class="num">سهم</th>
+      <thead><tr><th>پروژه</th><th>تاریخ</th><th>حالت</th><th class="num">درصد</th><th class="num">سهم</th>
         <th class="num">پرداخت در پروژه</th><th>وضعیت</th></tr></thead>
       <tbody>
         {% for p in projects %}
         <tr>
           <td><a href="{{ url_for('projects.detail', project_id=p.id) }}">{{ p.name }}</a></td>
           <td class="num">{{ p.project_date_jalali | fa if p.project_date_jalali else '—' }}</td>
+          <td>{{ 'مبلغ ثابت' if p.mode == 'fixed' else 'درصد' }}</td>
           <td class="num">{{ p.percent | percent | fa }}٪</td>
           <td class="num">{{ p.share_amount | money_fa }}</td>
           <td class="num">{{ p.paid_on_project | money_fa }}</td>

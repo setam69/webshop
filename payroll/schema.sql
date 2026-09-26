@@ -42,13 +42,14 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at          TEXT    NOT NULL
 );
 
--- اتصال نیرو به پروژه (درصد و سهم همان پروژه) ---------------------------------
+-- اتصال نیرو به پروژه (درصد یا مبلغ ثابت، و سهم نهایی همان پروژه) -------------
 CREATE TABLE IF NOT EXISTS project_workers (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id   INTEGER NOT NULL,
     worker_id    INTEGER NOT NULL,
-    percent      REAL    NOT NULL DEFAULT 0,
-    share_amount INTEGER NOT NULL DEFAULT 0,
+    mode         TEXT    NOT NULL DEFAULT 'percent',  -- percent | fixed
+    percent      REAL    NOT NULL DEFAULT 0,          -- در حالت fixed: درصد معادل (فقط نمایشی)
+    share_amount INTEGER NOT NULL DEFAULT 0,          -- سهم نهایی نیرو (منبع اصلی محاسبات)
     FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
     FOREIGN KEY (worker_id)  REFERENCES workers  (id) ON DELETE CASCADE,
     UNIQUE (project_id, worker_id)

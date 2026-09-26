@@ -58,36 +58,64 @@
     fmt();
   });
 
-  // --- محاسبه زنده سهم نیروها در فرم پروژه ---
+  // --- محاسبه زنده سهم نیروها در فرم پروژه (حالت درصد یا مبلغ ثابت) ---
   var laborInput = document.getElementById("labor_amount");
   var calcRoot = document.getElementById("worker-rows");
   if (laborInput && calcRoot) {
     function num(s) { return parseInt(digits(s) || "0", 10); }
 
+    function applyRowMode(row) {
+      var modeSel = row.querySelector("select.worker-mode");
+      var percentWrap = row.querySelector(".percent-wrap");
+      var amountWrap = row.querySelector(".amount-wrap");
+      if (!modeSel) return;
+      var isFixed = modeSel.value === "fixed";
+      if (percentWrap) percentWrap.style.display = isFixed ? "none" : "";
+      if (amountWrap) amountWrap.style.display = isFixed ? "" : "none";
+    }
+
+    calcRoot.querySelectorAll("select.worker-mode").forEach(function (sel) {
+      applyRowMode(sel.closest(".worker-row"));
+      sel.addEventListener("change", function () {
+        applyRowMode(sel.closest(".worker-row"));
+        recalc();
+      });
+    });
+
     function recalc() {
       var labor = num(laborInput.value);
-      var totalPercent = 0, totalShare = 0;
+      var totalShare = 0;
       calcRoot.querySelectorAll(".worker-row").forEach(function (row) {
         var check = row.querySelector("input[type=checkbox]");
+        var modeSel = row.querySelector("select.worker-mode");
         var percentInp = row.querySelector("input.percent");
+        var amountInp = row.querySelector("input.worker-amount");
         var shareCell = row.querySelector(".share-cell");
         var active = check && check.checked;
-        var p = parseFloat((percentInp.value || "0").replace(/[^\d.]/g, "")) || 0;
-        var share = active ? Math.round(labor * p / 100) : 0;
-        if (active) { totalPercent += p; totalShare += share; }
+        var isFixed = modeSel && modeSel.value === "fixed";
+        var share = 0;
+        if (active) {
+          if (isFixed) {
+            share = num(amountInp ? amountInp.value : "0");
+          } else {
+            var p = parseFloat((percentInp && percentInp.value || "0").replace(/[^\d.]/g, "")) || 0;
+            share = Math.round(labor * p / 100);
+          }
+        }
+        if (active) totalShare += share;
         if (shareCell) shareCell.textContent = active ? group(String(share)) : "—";
         row.style.opacity = active ? "1" : ".55";
       });
       var shop = labor - totalShare;
-      setText("sum-percent", totalPercent);
       setText("sum-share", group(String(totalShare)));
       setText("shop-share", group(String(shop)));
 
       var warn = document.getElementById("percent-warning");
       if (warn) {
-        if (totalPercent > 100) {
+        if (totalShare > labor) {
           warn.style.display = "block";
-          warn.textContent = "⚠ مجموع درصدها (" + totalPercent + "٪) بیشتر از ۱۰۰٪ است؛ امکان ثبت وجود ندارد.";
+          warn.textContent = "⚠ مجموع سهم نیروها (" + group(String(totalShare)) +
+            ") از مبلغ کل پروژه (" + group(String(labor)) + ") بیشتر است؛ امکان ثبت وجود ندارد.";
         } else {
           warn.style.display = "none";
         }

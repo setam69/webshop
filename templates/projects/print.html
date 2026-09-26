@@ -44,18 +44,19 @@
 
   <h2>نیروها، سهم و پرداخت‌ها</h2>
   <table>
-    <thead><tr><th>نیرو</th><th>درصد</th><th>سهم</th><th>پرداخت‌شده</th><th>مانده طلب</th></tr></thead>
+    <thead><tr><th>نیرو</th><th>حالت</th><th>درصد</th><th>سهم</th><th>پرداخت‌شده</th><th>مانده طلب</th></tr></thead>
     <tbody>
       {% for w in workers %}
       <tr>
         <td>{{ w.name }}</td>
+        <td>{{ 'مبلغ ثابت' if w.mode == 'fixed' else 'درصد' }}</td>
         <td class="num">{{ w.percent | percent }}٪</td>
         <td class="num">{{ w.share_amount | money }}</td>
         <td class="num">{{ w.paid | money }}</td>
         <td class="num">{{ w.balance | money }}</td>
       </tr>
       {% endfor %}
-      <tr class="total-row"><td>مجموع سهم نیروها</td><td></td><td class="num">{{ fin.workers_share | money }}</td><td colspan="2"></td></tr>
+      <tr class="total-row"><td>مجموع سهم نیروها</td><td></td><td></td><td class="num">{{ fin.workers_share | money }}</td><td colspan="2"></td></tr>
     </tbody>
   </table>
 

@@ -56,13 +56,17 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>نیرو</th><th class="num">درصد</th><th class="num">سهم ({{ currency }})</th>
+        <tr><th>نیرو</th><th>حالت</th><th class="num">درصد</th><th class="num">سهم ({{ currency }})</th>
           <th class="num">پرداخت‌شده</th><th class="num">مانده طلب</th><th>ثبت پرداخت</th></tr>
       </thead>
       <tbody>
         {% for w in workers %}
         <tr>
           <td><a href="{{ url_for('settlement.detail', worker_id=w.worker_id) }}">{{ w.name }}</a></td>
+          <td>
+            {% if w.mode == 'fixed' %}<span class="badge blue">مبلغ ثابت</span>
+            {% else %}<span class="badge gray">درصد</span>{% endif %}
+          </td>
           <td class="num">{{ w.percent | percent | fa }}٪</td>
           <td class="num">{{ w.share_amount | money_fa }}</td>
           <td class="num">{{ w.paid | money_fa }}</td>

@@ -68,6 +68,9 @@ def migrate():
         "payments": [
             ("method", "TEXT"),
         ],
+        "project_workers": [
+            ("mode", "TEXT NOT NULL DEFAULT 'percent'"),
+        ],
     }
     for table, cols in additions.items():
         existing = _table_columns(db, table)

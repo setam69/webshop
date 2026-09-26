@@ -43,6 +43,23 @@ def worker_share(labor_amount, percent):
     return int(round((labor_amount or 0) * (percent or 0) / 100.0))
 
 
+# حالت سهم هر نیرو در یک پروژه: بر اساس درصد یا مبلغ ثابت -------------------
+WORKER_SHARE_MODES = {"percent": "درصد", "fixed": "مبلغ ثابت"}
+
+
+def parse_worker_mode(text):
+    """رشته حالت را می‌خواند؛ مقدار نامعتبر یا خالی → 'percent' (پیش‌فرض امن)."""
+    value = (text or "").strip()
+    return value if value in WORKER_SHARE_MODES else "percent"
+
+
+def equivalent_percent(amount, labor_amount):
+    """درصد معادلِ یک مبلغ ثابت نسبت به کل دستمزد، فقط برای نمایش/گزارش."""
+    if not labor_amount:
+        return 0.0
+    return round((amount or 0) * 100.0 / labor_amount, 4)
+
+
 def compute_shares(labor_amount, percents):
     """لیست درصدها را گرفته و (لیست سهم‌ها، مجموع سهم نیروها، سهم مغازه) را می‌دهد.
 

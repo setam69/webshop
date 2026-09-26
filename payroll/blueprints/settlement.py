@@ -31,7 +31,7 @@ def detail(worker_id):
         return redirect(url_for("settlement.index"))
 
     projects = db.execute(
-        "SELECT pw.percent, pw.share_amount, p.id, p.name, p.status,"
+        "SELECT pw.mode, pw.percent, pw.share_amount, p.id, p.name, p.status,"
         " p.project_date_jalali, p.labor_amount,"
         " (SELECT COALESCE(SUM(amount), 0) FROM payments"
         "   WHERE worker_id = pw.worker_id AND project_id = p.id) AS paid_on_project"

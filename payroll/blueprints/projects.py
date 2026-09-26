@@ -7,11 +7,12 @@ from flask import (
 )
 
 from ..auth import login_required
-from ..db import get_db
+from ..db import get_db, get_setting
 from ..jalali import parse_date_input, today_jalali_str
 from ..queries import project_financials, project_worker_paid
 from ..utils import (
-    PAYMENT_METHODS, STATUS_LABELS, parse_amount, parse_percent, worker_share,
+    PAYMENT_METHODS, STATUS_LABELS, WORKER_SHARE_MODES, equivalent_percent,
+    parse_amount, parse_percent, parse_worker_mode, worker_share,
 )
 
 bp = Blueprint("projects", __name__, url_prefix="/projects")
@@ -98,10 +99,17 @@ def edit(project_id):
         (project_id,),
     ).fetchall()
     rows = db.execute(
-        "SELECT worker_id, percent FROM project_workers WHERE project_id = ?",
+        "SELECT worker_id, mode, percent, share_amount FROM project_workers WHERE project_id = ?",
         (project_id,),
     ).fetchall()
-    selected = {r["worker_id"]: r["percent"] for r in rows}
+    selected = {
+        r["worker_id"]: {
+            "mode": r["mode"] or "percent",
+            "percent": r["percent"],
+            "amount": r["share_amount"],
+        }
+        for r in rows
+    }
     f = {
         "name": project["name"],
         "customer_name": project["customer_name"],
@@ -136,20 +144,31 @@ def _save_project(project_id):
         customer_total = labor_amount if labor_amount is not None else 0
     date_jalali, date_iso = parse_date_input(request.form.get("project_date"))
 
-    # نیروهای انتخاب‌شده و درصدشان
+    # نیروهای انتخاب‌شده: هرکدام یا بر اساس درصد یا مبلغ ثابت
     worker_ids = request.form.getlist("worker_id")
-    chosen = []  # (worker_id, percent)
+    chosen = []  # (worker_id, mode, percent_for_display, share_amount)
     errors = []
     for wid in worker_ids:
         try:
             wid_int = int(wid)
         except (TypeError, ValueError):
             continue
-        percent = parse_percent(request.form.get("percent_%s" % wid))
-        if percent is None:
-            errors.append("درصد یکی از نیروها نامعتبر است.")
-            continue
-        chosen.append((wid_int, percent))
+        mode = parse_worker_mode(request.form.get("mode_%s" % wid))
+        if mode == "fixed":
+            amount = parse_amount(request.form.get("amount_%s" % wid))
+            if amount is None:
+                errors.append("مبلغ ثابت یکی از نیروها نامعتبر است.")
+                continue
+            share = amount
+            percent_display = None  # پس از مشخص‌شدن labor_amount محاسبه می‌شود
+        else:
+            percent = parse_percent(request.form.get("percent_%s" % wid))
+            if percent is None:
+                errors.append("درصد یکی از نیروها نامعتبر است.")
+                continue
+            share = None  # پس از مشخص‌شدن labor_amount محاسبه می‌شود
+            percent_display = percent
+        chosen.append([wid_int, mode, percent_display, share])
 
     if not name:
         errors.append("نام پروژه الزامی است.")
@@ -158,11 +177,23 @@ def _save_project(project_id):
     if status not in STATUS_LABELS:
         status = "not_started"
 
-    total_percent = sum(p for _, p in chosen)
-    if total_percent > 100:
-        errors.append(
-            "مجموع درصد نیروها (%g٪) بیشتر از ۱۰۰٪ است؛ امکان ثبت وجود ندارد." % total_percent
-        )
+    if labor_amount is not None:
+        for row in chosen:
+            _, mode, percent_display, share = row
+            if mode == "fixed":
+                row[2] = equivalent_percent(share, labor_amount)  # درصد معادل نمایشی
+            else:
+                row[3] = worker_share(labor_amount, percent_display)
+
+        total_share = sum(row[3] for row in chosen)
+        if total_share > labor_amount:
+            currency = get_setting("currency", "تومان")
+            errors.append(
+                "مجموع سهم نیروها (%s %s) از مبلغ کل دستمزد پروژه (%s %s) بیشتر است؛"
+                " امکان ثبت وجود ندارد."
+                % ("{:,}".format(total_share), currency,
+                   "{:,}".format(labor_amount), currency)
+            )
 
     if errors:
         for e in errors:
@@ -188,11 +219,11 @@ def _save_project(project_id):
         )
         db.execute("DELETE FROM project_workers WHERE project_id = ?", (project_id,))
 
-    for wid_int, percent in chosen:
+    for wid_int, mode, percent_display, share in chosen:
         db.execute(
-            "INSERT INTO project_workers (project_id, worker_id, percent, share_amount)"
-            " VALUES (?, ?, ?, ?)",
-            (project_id, wid_int, percent, worker_share(labor_amount, percent)),
+            "INSERT INTO project_workers (project_id, worker_id, mode, percent, share_amount)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (project_id, wid_int, mode, percent_display or 0, share),
         )
     db.commit()
     flash("پروژه با موفقیت ذخیره شد.", "success")
@@ -207,10 +238,16 @@ def _rerender_form(project_id):
     selected = {}
     for wid in request.form.getlist("worker_id"):
         try:
-            selected[int(wid)] = parse_percent(request.form.get("percent_%s" % wid)) or 0
+            wid_int = int(wid)
         except (TypeError, ValueError):
-            pass
-    mode = "edit" if project_id else "new"
+            continue
+        w_mode = parse_worker_mode(request.form.get("mode_%s" % wid))
+        selected[wid_int] = {
+            "mode": w_mode,
+            "percent": parse_percent(request.form.get("percent_%s" % wid)) or 0,
+            "amount": parse_amount(request.form.get("amount_%s" % wid)) or 0,
+        }
+    page_mode = "edit" if project_id else "new"
     f = {
         "name": request.form.get("name", ""),
         "customer_name": request.form.get("customer_name", ""),
@@ -225,7 +262,7 @@ def _rerender_form(project_id):
     project = {"id": project_id} if project_id else None
     return render_template(
         "projects/form.html",
-        project=project, mode=mode, workers=workers, f=f,
+        project=project, mode=page_mode, workers=workers, f=f,
         selected=selected, today=today_jalali_str(),
     )
 
@@ -253,6 +290,7 @@ def detail(project_id):
             "worker_id": r["worker_id"],
             "name": r["worker_name"],
             "phone": r["worker_phone"],
+            "mode": r["mode"] or "percent",
             "percent": r["percent"],
             "share_amount": r["share_amount"],
             "paid": paid,
@@ -298,7 +336,7 @@ def print_view(project_id):
     for r in rows:
         paid = project_worker_paid(project_id, r["worker_id"])
         workers.append({
-            "name": r["worker_name"], "percent": r["percent"],
+            "name": r["worker_name"], "mode": r["mode"] or "percent", "percent": r["percent"],
             "share_amount": r["share_amount"], "paid": paid,
             "balance": r["share_amount"] - paid,
         })
